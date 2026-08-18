@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Stock Planches</title>
+
+<meta name="theme-color" content="#1F6F54">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stock Planches">
+<meta name="format-detection" content="telephone=no">
+
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- PAGE 1 : LONGUEUR -->
+  <section class="page" id="page-longueur" data-page="longueur">
+    <header class="topbar">
+      <div class="topbar-title">
+        <span class="topbar-title-main">Longueur</span>
+      </div>
+      <button type="button" class="btn-results" id="btn-go-results" aria-label="Voir les résultats">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M4 13h4v7H4v-7Zm6-9h4v16h-4V4Zm6 6h4v10h-4V10Z"/></svg>
+        <span>Résultats</span>
+      </button>
+    </header>
+
+    <div class="grid grid-longueur" id="grid-longueur" role="group" aria-label="Sélection de la longueur"></div>
+  </section>
+
+  <!-- PAGE 2 : PIECES / COUCHE -->
+  <section class="page" id="page-pieces" data-page="pieces" hidden>
+    <header class="topbar">
+      <button type="button" class="btn-back" id="btn-back-to-longueur" aria-label="Retour au choix de la longueur">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M15.5 4.5 8 12l7.5 7.5 1.4-1.4L10.8 12l6.1-6.1z"/></svg>
+      </button>
+      <div class="topbar-title">
+        <span class="topbar-title-sub">Longueur sélectionnée</span>
+        <span class="topbar-title-main" id="current-longueur-label">—</span>
+      </div>
+    </header>
+
+    <div class="grid grid-pieces" id="grid-pieces" role="group" aria-label="Sélection des pièces par couche"></div>
+  </section>
+
+  <!-- PAGE 3 : RESULTATS -->
+  <section class="page" id="page-resultats" data-page="resultats" hidden>
+    <header class="topbar">
+      <button type="button" class="btn-back" id="btn-back-from-results" aria-label="Retour">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M15.5 4.5 8 12l7.5 7.5 1.4-1.4L10.8 12l6.1-6.1z"/></svg>
+      </button>
+      <div class="topbar-title">
+        <span class="topbar-title-main">Résultats</span>
+      </div>
+      <button type="button" class="btn-reset" id="btn-reset" aria-label="Réinitialiser le stock">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M6 7h12l-1 13H7L6 7Zm3-3h6l1 2H8l1-2Z"/></svg>
+      </button>
+    </header>
+
+    <div class="results-wrap">
+      <div class="table-scroll">
+        <table class="results-table" id="results-table">
+          <thead>
+            <tr>
+              <th>Lg</th>
+              <th>Pièces/Couche</th>
+              <th>Nb</th>
+            </tr>
+          </thead>
+          <tbody id="results-body">
+            <tr class="empty-row" id="results-empty">
+              <td colspan="3">Aucune saisie pour le moment</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2">Total colis</td>
+              <td id="results-total">0</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- MODALE "AUTRE" (saisie libre) -->
+<div class="modal-overlay" id="modal-overlay" hidden>
+  <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h2 id="modal-title">Valeur personnalisée</h2>
+    <p class="modal-hint" id="modal-hint">Saisissez une valeur</p>
+    <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" class="modal-input" id="modal-input" placeholder="0">
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="modal-cancel">Annuler</button>
+      <button type="button" class="btn-primary" id="modal-confirm">Valider</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST de confirmation -->
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
