@@ -2,22 +2,23 @@
 
 /* ---------- Persistance ---------- */
 
-const STORAGE_KEY = 'stockPlanches:v4';
+const STORAGE_KEY = 'stockPlanches:v5';
 const HISTORY_LIMIT = 6;
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null };
+    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false };
     const parsed = JSON.parse(raw);
     return {
       records: Array.isArray(parsed.records) ? parsed.records : [],
       history: Array.isArray(parsed.history) ? parsed.history : [],
       currentLongueur: parsed.currentLongueur ?? null,
       currentEpaisseur: parsed.currentEpaisseur ?? null,
+      epaisseurDual: parsed.epaisseurDual === true,
     };
   } catch (e) {
-    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null };
+    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false };
   }
 }
 
@@ -27,6 +28,7 @@ function saveState() {
     history: state.history,
     currentLongueur: state.currentLongueur,
     currentEpaisseur: state.currentEpaisseur,
+    epaisseurDual: state.epaisseurDual,
   }));
 }
 
@@ -50,7 +52,12 @@ function formatNumberFR(value) {
 
 const LONGUEUR_VALUES = [3, 3.5, 4, 4.5, 5, 5.5, 6];
 
-const EPAISSEUR_VALUES = [18, 27, 38, 50, 63, 75];
+const EPAISSEUR_SINGLE_VALUES = [18, 27, 38, 50];
+
+// Bouton combiné : sur la page pièces/couche, permet de choisir entre
+// 63 et 75 sans revenir sur la page épaisseur (voir buildPiecesGridDual).
+const EPAISSEUR_DUAL_VALUES = [63, 75];
+const EPAISSEUR_DUAL_LABEL = '63/75';
 
 // "5." (avec un point) est un libellé distinct de "5", demandé tel quel —
 // ce n'est pas 5,5. Le rang sert uniquement au tri croissant et place "5."
@@ -112,9 +119,16 @@ function goToEpaisseur() {
 }
 
 function goToPieces() {
-  currentLongueurEpaisseurLabel.textContent = state.currentLongueur && state.currentEpaisseur !== null
-    ? `${formatLongueur(state.currentLongueur)} · ${formatNumberFR(state.currentEpaisseur)} mm`
-    : '—';
+  if (state.currentLongueur === null) {
+    currentLongueurEpaisseurLabel.textContent = '—';
+  } else if (state.epaisseurDual) {
+    currentLongueurEpaisseurLabel.textContent = `${formatLongueur(state.currentLongueur)} · ${EPAISSEUR_DUAL_LABEL} mm`;
+  } else if (state.currentEpaisseur !== null) {
+    currentLongueurEpaisseurLabel.textContent = `${formatLongueur(state.currentLongueur)} · ${formatNumberFR(state.currentEpaisseur)} mm`;
+  } else {
+    currentLongueurEpaisseurLabel.textContent = '—';
+  }
+  buildPiecesGrid();
   showPage('pieces');
 }
 
@@ -208,7 +222,7 @@ function selectLongueur(value) {
 function buildEpaisseurGrid() {
   gridEpaisseur.innerHTML = '';
 
-  for (const value of EPAISSEUR_VALUES) {
+  for (const value of EPAISSEUR_SINGLE_VALUES) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'tile';
@@ -217,9 +231,16 @@ function buildEpaisseurGrid() {
     gridEpaisseur.appendChild(btn);
   }
 
+  const btnDual = document.createElement('button');
+  btnDual.type = 'button';
+  btnDual.className = 'tile';
+  btnDual.textContent = EPAISSEUR_DUAL_LABEL;
+  btnDual.addEventListener('click', () => selectEpaisseurDual());
+  gridEpaisseur.appendChild(btnDual);
+
   const btnAutre = document.createElement('button');
   btnAutre.type = 'button';
-  btnAutre.className = 'tile tile-autre tile-full';
+  btnAutre.className = 'tile tile-autre';
   btnAutre.textContent = 'Autre';
   btnAutre.addEventListener('click', async () => {
     const value = await openModal({
@@ -234,13 +255,37 @@ function buildEpaisseurGrid() {
 
 function selectEpaisseur(value) {
   state.currentEpaisseur = value;
+  state.epaisseurDual = false;
+  saveState();
+  goToPieces();
+}
+
+function selectEpaisseurDual() {
+  state.currentEpaisseur = null;
+  state.epaisseurDual = true;
   saveState();
   goToPieces();
 }
 
 function buildPiecesGrid() {
   gridPieces.innerHTML = '';
+  gridPieces.classList.toggle('grid-4col', state.epaisseurDual);
+  gridPieces.classList.toggle('grid-2col', !state.epaisseurDual);
 
+  if (state.epaisseurDual) {
+    buildPiecesGridDual();
+  } else {
+    buildPiecesGridSingle();
+  }
+
+  historyPanel = document.createElement('div');
+  historyPanel.className = state.epaisseurDual ? 'history-panel tile-full' : 'history-panel';
+  historyPanel.setAttribute('aria-live', 'polite');
+  gridPieces.appendChild(historyPanel);
+  renderHistory();
+}
+
+function buildPiecesGridSingle() {
   for (const option of PIECES_OPTIONS) {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -264,12 +309,59 @@ function buildPiecesGrid() {
     recordCombination({ key: label, label, rank: value });
   });
   gridPieces.appendChild(btnAutre);
+}
 
-  historyPanel = document.createElement('div');
-  historyPanel.className = 'history-panel';
-  historyPanel.setAttribute('aria-live', 'polite');
-  gridPieces.appendChild(historyPanel);
-  renderHistory();
+// Grille 4 colonnes : les 2 premières colonnes pour l'épaisseur 63,
+// les 2 dernières pour l'épaisseur 75 — bascule sans repasser par la
+// page épaisseur.
+function buildPiecesGridDual() {
+  for (const ep of EPAISSEUR_DUAL_VALUES) {
+    const label = document.createElement('div');
+    label.className = 'dual-ep-label';
+    label.textContent = `${formatNumberFR(ep)} mm`;
+    gridPieces.appendChild(label);
+  }
+
+  const pairs = [
+    [PIECES_OPTIONS[0], PIECES_OPTIONS[1]],
+    [PIECES_OPTIONS[2], PIECES_OPTIONS[3]],
+    [PIECES_OPTIONS[4], PIECES_OPTIONS[5]],
+  ];
+
+  for (const [left, right] of pairs) {
+    for (const option of [left, right]) {
+      appendPiecesTile(option, EPAISSEUR_DUAL_VALUES[0]);
+    }
+    for (const option of [left, right]) {
+      appendPiecesTile(option, EPAISSEUR_DUAL_VALUES[1]);
+    }
+  }
+
+  for (const ep of EPAISSEUR_DUAL_VALUES) {
+    const btnAutre = document.createElement('button');
+    btnAutre.type = 'button';
+    btnAutre.className = 'tile tile-autre tile-half-span';
+    btnAutre.textContent = `Autre ${formatNumberFR(ep)}`;
+    btnAutre.addEventListener('click', async () => {
+      const value = await openModal({
+        title: `Pièces / couche personnalisé — ${formatNumberFR(ep)} mm`,
+        hint: 'Saisissez le nombre de pièces par couche',
+      });
+      if (value === null) return;
+      const label = formatNumberFR(value);
+      recordCombination({ key: label, label, rank: value }, ep);
+    });
+    gridPieces.appendChild(btnAutre);
+  }
+}
+
+function appendPiecesTile(option, ep) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'tile';
+  btn.textContent = option.label;
+  btn.addEventListener('click', () => recordCombination(option, ep));
+  gridPieces.appendChild(btn);
 }
 
 /* ---------- Historique des derniers enregistrements ---------- */
@@ -287,13 +379,13 @@ function renderHistory() {
 
 /* ---------- Enregistrement des combinaisons ---------- */
 
-function recordCombination(pieces) {
-  if (state.currentLongueur === null || state.currentEpaisseur === null) {
+function recordCombination(pieces, epOverride) {
+  const ep = epOverride !== undefined ? epOverride : state.currentEpaisseur;
+  if (state.currentLongueur === null || ep === null) {
     goToLongueur();
     return;
   }
   const lg = state.currentLongueur;
-  const ep = state.currentEpaisseur;
   const existing = state.records.find((r) => r.lg === lg && r.ep === ep && r.pcKey === pieces.key);
   if (existing) {
     existing.nb += 1;
@@ -361,7 +453,7 @@ document.getElementById('btn-go-results').addEventListener('click', goToResultat
 document.getElementById('btn-back-to-longueur-from-epaisseur').addEventListener('click', goToLongueur);
 document.getElementById('btn-back-to-epaisseur').addEventListener('click', goToEpaisseur);
 document.getElementById('btn-back-from-results').addEventListener('click', () => {
-  if (state.currentLongueur !== null && state.currentEpaisseur !== null) {
+  if (state.currentLongueur !== null && (state.currentEpaisseur !== null || state.epaisseurDual)) {
     goToPieces();
   } else if (state.currentLongueur !== null) {
     goToEpaisseur();
@@ -374,9 +466,8 @@ document.getElementById('btn-back-from-results').addEventListener('click', () =>
 
 buildLongueurGrid();
 buildEpaisseurGrid();
-buildPiecesGrid();
 
-if (state.currentLongueur !== null && state.currentEpaisseur !== null) {
+if (state.currentLongueur !== null && (state.currentEpaisseur !== null || state.epaisseurDual)) {
   goToPieces();
 } else if (state.currentLongueur !== null) {
   goToEpaisseur();
