@@ -407,7 +407,11 @@ function renderHistory() {
     historyPanel.innerHTML = '<p class="history-empty">Aucun enregistrement</p>';
     return;
   }
-  historyPanel.innerHTML = state.history
+  // state.history est stocké du plus récent au plus ancien (pratique pour
+  // le retrait via undoLastEntry) ; on l'inverse à l'affichage pour que le
+  // plus récent apparaisse tout en bas, comme un journal qui s'allonge.
+  historyPanel.innerHTML = [...state.history]
+    .reverse()
     .map((h) => `<p class="history-line">${formatLongueur(h.lg)} ${formatNumberFR(h.ep)} - ${h.pcLabel}</p>`)
     .join('');
 }
