@@ -2,7 +2,7 @@
 
 /* ---------- Persistance ---------- */
 
-const STORAGE_KEY = 'stockPlanches:v1';
+const STORAGE_KEY = 'stockPlanches:v2';
 
 function loadState() {
   try {
@@ -44,7 +44,18 @@ function formatPieces(value) {
 /* ---------- Config des boutons ---------- */
 
 const LONGUEUR_VALUES = [3, 3.5, 4, 4.5, 5, 5.5, 6];
-const PIECES_VALUES = [5, 5.5, 6, 7, 10, 11];
+
+// "5." (avec un point) est un libellé distinct de "5", demandé tel quel —
+// ce n'est pas 5,5. Le rang sert uniquement au tri croissant et place "5."
+// juste après "5" puisque les deux représentent la même quantité.
+const PIECES_OPTIONS = [
+  { key: '5', label: '5', rank: 5 },
+  { key: '5.', label: '5.', rank: 5.01 },
+  { key: '6', label: '6', rank: 6 },
+  { key: '7', label: '7', rank: 7 },
+  { key: '10', label: '10', rank: 10 },
+  { key: '11', label: '11', rank: 11 },
+];
 
 /* ---------- Références DOM ---------- */
 
@@ -179,12 +190,12 @@ function selectLongueur(value) {
 function buildPiecesGrid() {
   gridPieces.innerHTML = '';
 
-  for (const value of PIECES_VALUES) {
+  for (const option of PIECES_OPTIONS) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'tile';
-    btn.textContent = formatPieces(value);
-    btn.addEventListener('click', () => recordCombination(value));
+    btn.textContent = option.label;
+    btn.addEventListener('click', () => recordCombination(option));
     gridPieces.appendChild(btn);
   }
 
@@ -198,28 +209,29 @@ function buildPiecesGrid() {
       hint: 'Saisissez le nombre de pièces par couche',
     });
     if (value === null) return;
-    recordCombination(value);
+    const label = formatPieces(value);
+    recordCombination({ key: label, label, rank: value });
   });
   gridPieces.appendChild(btnAutre);
 }
 
 /* ---------- Enregistrement des combinaisons ---------- */
 
-function recordCombination(piecesValue) {
+function recordCombination(pieces) {
   if (state.currentLongueur === null) {
     goToLongueur();
     return;
   }
   const lg = state.currentLongueur;
-  const existing = state.records.find((r) => r.lg === lg && r.pc === piecesValue);
+  const existing = state.records.find((r) => r.lg === lg && r.pcKey === pieces.key);
   if (existing) {
     existing.nb += 1;
   } else {
-    state.records.push({ lg, pc: piecesValue, nb: 1 });
+    state.records.push({ lg, pcKey: pieces.key, pcLabel: pieces.label, pcRank: pieces.rank, nb: 1 });
   }
   saveState();
   const nb = existing ? existing.nb : 1;
-  showToast(`${formatLongueur(lg)} · ${formatPieces(piecesValue)} pièces/couche — Nb : ${nb}`);
+  showToast(`${formatLongueur(lg)} · ${pieces.label} pièces/couche — Nb : ${nb}`);
 }
 
 /* ---------- Résultats ---------- */
@@ -227,7 +239,8 @@ function recordCombination(piecesValue) {
 function renderResults() {
   const sorted = [...state.records].sort((a, b) => {
     if (a.lg !== b.lg) return a.lg - b.lg;
-    return a.pc - b.pc;
+    if (a.pcRank !== b.pcRank) return a.pcRank - b.pcRank;
+    return a.pcLabel.localeCompare(b.pcLabel);
   });
 
   resultsBody.innerHTML = '';
@@ -244,7 +257,7 @@ function renderResults() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${formatLongueur(record.lg)}</td>
-      <td>${formatPieces(record.pc)}</td>
+      <td>${record.pcLabel}</td>
       <td>${record.nb}</td>
     `;
     resultsBody.appendChild(tr);
