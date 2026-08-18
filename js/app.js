@@ -86,6 +86,7 @@ const gridPieces = document.getElementById('grid-pieces');
 let historyPanel = null;
 const currentLongueurLabelEpaisseur = document.getElementById('current-longueur-label-epaisseur');
 const currentLongueurEpaisseurLabel = document.getElementById('current-longueur-epaisseur-label');
+const btnUndoLast = document.getElementById('btn-undo-last');
 const resultsBody = document.getElementById('results-body');
 const resultsEmptyRow = document.getElementById('results-empty');
 const resultsTotal = document.getElementById('results-total');
@@ -367,6 +368,7 @@ function appendPiecesTile(option, ep) {
 /* ---------- Historique des derniers enregistrements ---------- */
 
 function renderHistory() {
+  btnUndoLast.disabled = state.history.length === 0;
   if (!historyPanel) return;
   if (state.history.length === 0) {
     historyPanel.innerHTML = '<p class="history-empty">Aucun enregistrement</p>';
@@ -392,12 +394,29 @@ function recordCombination(pieces, epOverride) {
   } else {
     state.records.push({ lg, ep, pcKey: pieces.key, pcLabel: pieces.label, pcRank: pieces.rank, nb: 1 });
   }
-  state.history.unshift({ lg, ep, pcLabel: pieces.label });
+  state.history.unshift({ lg, ep, pcKey: pieces.key, pcLabel: pieces.label });
   state.history = state.history.slice(0, HISTORY_LIMIT);
   saveState();
   renderHistory();
   const nb = existing ? existing.nb : 1;
   showToast(`${formatLongueur(lg)} · ${formatNumberFR(ep)}mm · ${pieces.label} pièces/couche — Nb : ${nb}`);
+}
+
+function undoLastEntry() {
+  if (state.history.length === 0) return;
+  const last = state.history.shift();
+  const existing = state.records.find(
+    (r) => r.lg === last.lg && r.ep === last.ep && r.pcKey === last.pcKey
+  );
+  if (existing) {
+    existing.nb -= 1;
+    if (existing.nb <= 0) {
+      state.records = state.records.filter((r) => r !== existing);
+    }
+  }
+  saveState();
+  renderHistory();
+  showToast(`Annulé : ${formatLongueur(last.lg)} · ${formatNumberFR(last.ep)}mm · ${last.pcLabel} pièces/couche`);
 }
 
 /* ---------- Résultats ---------- */
@@ -452,6 +471,7 @@ document.getElementById('btn-reset').addEventListener('click', () => {
 document.getElementById('btn-go-results').addEventListener('click', goToResultats);
 document.getElementById('btn-back-to-longueur-from-epaisseur').addEventListener('click', goToLongueur);
 document.getElementById('btn-back-to-epaisseur').addEventListener('click', goToEpaisseur);
+btnUndoLast.addEventListener('click', undoLastEntry);
 document.getElementById('btn-back-from-results').addEventListener('click', () => {
   if (state.currentLongueur !== null && (state.currentEpaisseur !== null || state.epaisseurDual)) {
     goToPieces();
