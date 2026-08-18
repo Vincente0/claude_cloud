@@ -2,26 +2,29 @@
 
 /* ---------- Persistance ---------- */
 
-const STORAGE_KEY = 'stockPlanches:v3';
+const STORAGE_KEY = 'stockPlanches:v4';
+const HISTORY_LIMIT = 6;
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { records: [], currentLongueur: null, currentEpaisseur: null };
+    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null };
     const parsed = JSON.parse(raw);
     return {
       records: Array.isArray(parsed.records) ? parsed.records : [],
+      history: Array.isArray(parsed.history) ? parsed.history : [],
       currentLongueur: parsed.currentLongueur ?? null,
       currentEpaisseur: parsed.currentEpaisseur ?? null,
     };
   } catch (e) {
-    return { records: [], currentLongueur: null, currentEpaisseur: null };
+    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null };
   }
 }
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     records: state.records,
+    history: state.history,
     currentLongueur: state.currentLongueur,
     currentEpaisseur: state.currentEpaisseur,
   }));
@@ -73,6 +76,7 @@ const pages = {
 const gridLongueur = document.getElementById('grid-longueur');
 const gridEpaisseur = document.getElementById('grid-epaisseur');
 const gridPieces = document.getElementById('grid-pieces');
+let historyPanel = null;
 const currentLongueurLabelEpaisseur = document.getElementById('current-longueur-label-epaisseur');
 const currentLongueurEpaisseurLabel = document.getElementById('current-longueur-epaisseur-label');
 const resultsBody = document.getElementById('results-body');
@@ -248,7 +252,7 @@ function buildPiecesGrid() {
 
   const btnAutre = document.createElement('button');
   btnAutre.type = 'button';
-  btnAutre.className = 'tile tile-autre tile-full';
+  btnAutre.className = 'tile tile-autre';
   btnAutre.textContent = 'Autre';
   btnAutre.addEventListener('click', async () => {
     const value = await openModal({
@@ -260,6 +264,25 @@ function buildPiecesGrid() {
     recordCombination({ key: label, label, rank: value });
   });
   gridPieces.appendChild(btnAutre);
+
+  historyPanel = document.createElement('div');
+  historyPanel.className = 'history-panel';
+  historyPanel.setAttribute('aria-live', 'polite');
+  gridPieces.appendChild(historyPanel);
+  renderHistory();
+}
+
+/* ---------- Historique des derniers enregistrements ---------- */
+
+function renderHistory() {
+  if (!historyPanel) return;
+  if (state.history.length === 0) {
+    historyPanel.innerHTML = '<p class="history-empty">Aucun enregistrement</p>';
+    return;
+  }
+  historyPanel.innerHTML = state.history
+    .map((h) => `<p class="history-line">${formatLongueur(h.lg)} ${formatNumberFR(h.ep)} - ${h.pcLabel}</p>`)
+    .join('');
 }
 
 /* ---------- Enregistrement des combinaisons ---------- */
@@ -277,7 +300,10 @@ function recordCombination(pieces) {
   } else {
     state.records.push({ lg, ep, pcKey: pieces.key, pcLabel: pieces.label, pcRank: pieces.rank, nb: 1 });
   }
+  state.history.unshift({ lg, ep, pcLabel: pieces.label });
+  state.history = state.history.slice(0, HISTORY_LIMIT);
   saveState();
+  renderHistory();
   const nb = existing ? existing.nb : 1;
   showToast(`${formatLongueur(lg)} · ${formatNumberFR(ep)}mm · ${pieces.label} pièces/couche — Nb : ${nb}`);
 }
@@ -322,8 +348,10 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   const confirmed = window.confirm('Réinitialiser tout le stock enregistré ? Cette action est irréversible.');
   if (!confirmed) return;
   state.records = [];
+  state.history = [];
   saveState();
   renderResults();
+  renderHistory();
   showToast('Stock réinitialisé');
 });
 
