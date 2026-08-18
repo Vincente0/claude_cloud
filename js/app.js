@@ -185,6 +185,39 @@ modalInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') modalConfirm.click();
 });
 
+/* ---------- Modale de confirmation (remplace window.confirm, bloqué
+   dans certains contextes sandboxés comme l'aperçu embarqué) ---------- */
+
+const confirmOverlay = document.getElementById('confirm-overlay');
+const confirmTitle = document.getElementById('confirm-title');
+const confirmMessage = document.getElementById('confirm-message');
+const confirmCancelBtn = document.getElementById('confirm-cancel');
+const confirmOkBtn = document.getElementById('confirm-ok');
+
+let confirmResolve = null;
+
+function openConfirm({ title, message, confirmLabel }) {
+  confirmTitle.textContent = title;
+  confirmMessage.textContent = message;
+  confirmOkBtn.textContent = confirmLabel || 'Confirmer';
+  confirmOverlay.hidden = false;
+  return new Promise((resolve) => { confirmResolve = resolve; });
+}
+
+function closeConfirm(result) {
+  confirmOverlay.hidden = true;
+  if (confirmResolve) {
+    confirmResolve(result);
+    confirmResolve = null;
+  }
+}
+
+confirmCancelBtn.addEventListener('click', () => closeConfirm(false));
+confirmOverlay.addEventListener('click', (e) => {
+  if (e.target === confirmOverlay) closeConfirm(false);
+});
+confirmOkBtn.addEventListener('click', () => closeConfirm(true));
+
 /* ---------- Construction des grilles ---------- */
 
 function buildLongueurGrid() {
@@ -454,9 +487,13 @@ function renderResults() {
 
 /* ---------- Réinitialisation ---------- */
 
-document.getElementById('btn-reset').addEventListener('click', () => {
+document.getElementById('btn-reset').addEventListener('click', async () => {
   if (state.records.length === 0) return;
-  const confirmed = window.confirm('Réinitialiser tout le stock enregistré ? Cette action est irréversible.');
+  const confirmed = await openConfirm({
+    title: 'Réinitialiser le stock',
+    message: 'Tout le stock enregistré sera effacé. Cette action est irréversible.',
+    confirmLabel: 'Réinitialiser',
+  });
   if (!confirmed) return;
   state.records = [];
   state.history = [];

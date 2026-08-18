@@ -332,6 +332,9 @@ body {
 .btn-primary { background: var(--color-accent); color: #fff; }
 .btn-primary:active { background: var(--color-accent-dark); }
 
+.btn-primary.btn-danger { background: var(--color-danger); }
+.btn-primary.btn-danger:active { background: #8f2e24; }
+
 .btn-secondary { background: var(--color-bg); color: var(--color-ink); border: 1px solid var(--color-card-border); }
 .btn-secondary:active { background: var(--color-card-border); }
 
