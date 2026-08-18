@@ -2,19 +2,20 @@
 
 /* ---------- Persistance ---------- */
 
-const STORAGE_KEY = 'stockPlanches:v2';
+const STORAGE_KEY = 'stockPlanches:v3';
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { records: [], currentLongueur: null };
+    if (!raw) return { records: [], currentLongueur: null, currentEpaisseur: null };
     const parsed = JSON.parse(raw);
     return {
       records: Array.isArray(parsed.records) ? parsed.records : [],
-      currentLongueur: parsed.currentLongueur || null,
+      currentLongueur: parsed.currentLongueur ?? null,
+      currentEpaisseur: parsed.currentEpaisseur ?? null,
     };
   } catch (e) {
-    return { records: [], currentLongueur: null };
+    return { records: [], currentLongueur: null, currentEpaisseur: null };
   }
 }
 
@@ -22,6 +23,7 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     records: state.records,
     currentLongueur: state.currentLongueur,
+    currentEpaisseur: state.currentEpaisseur,
   }));
 }
 
@@ -36,7 +38,7 @@ function formatLongueur(value) {
   return `${intPart}m${String(fracRaw).padStart(2, '0')}`;
 }
 
-function formatPieces(value) {
+function formatNumberFR(value) {
   if (Number.isInteger(value)) return String(value);
   return String(value).replace('.', ',');
 }
@@ -44,6 +46,8 @@ function formatPieces(value) {
 /* ---------- Config des boutons ---------- */
 
 const LONGUEUR_VALUES = [3, 3.5, 4, 4.5, 5, 5.5, 6];
+
+const EPAISSEUR_VALUES = [18, 27, 38, 50, 63, 75];
 
 // "5." (avec un point) est un libellé distinct de "5", demandé tel quel —
 // ce n'est pas 5,5. Le rang sert uniquement au tri croissant et place "5."
@@ -61,13 +65,16 @@ const PIECES_OPTIONS = [
 
 const pages = {
   longueur: document.getElementById('page-longueur'),
+  epaisseur: document.getElementById('page-epaisseur'),
   pieces: document.getElementById('page-pieces'),
   resultats: document.getElementById('page-resultats'),
 };
 
 const gridLongueur = document.getElementById('grid-longueur');
+const gridEpaisseur = document.getElementById('grid-epaisseur');
 const gridPieces = document.getElementById('grid-pieces');
-const currentLongueurLabel = document.getElementById('current-longueur-label');
+const currentLongueurLabelEpaisseur = document.getElementById('current-longueur-label-epaisseur');
+const currentLongueurEpaisseurLabel = document.getElementById('current-longueur-epaisseur-label');
 const resultsBody = document.getElementById('results-body');
 const resultsEmptyRow = document.getElementById('results-empty');
 const resultsTotal = document.getElementById('results-total');
@@ -93,9 +100,16 @@ function goToLongueur() {
   showPage('longueur');
 }
 
-function goToPieces() {
-  currentLongueurLabel.textContent = state.currentLongueur
+function goToEpaisseur() {
+  currentLongueurLabelEpaisseur.textContent = state.currentLongueur
     ? formatLongueur(state.currentLongueur)
+    : '—';
+  showPage('epaisseur');
+}
+
+function goToPieces() {
+  currentLongueurEpaisseurLabel.textContent = state.currentLongueur && state.currentEpaisseur !== null
+    ? `${formatLongueur(state.currentLongueur)} · ${formatNumberFR(state.currentEpaisseur)} mm`
     : '—';
   showPage('pieces');
 }
@@ -184,6 +198,39 @@ function buildLongueurGrid() {
 function selectLongueur(value) {
   state.currentLongueur = value;
   saveState();
+  goToEpaisseur();
+}
+
+function buildEpaisseurGrid() {
+  gridEpaisseur.innerHTML = '';
+
+  for (const value of EPAISSEUR_VALUES) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tile';
+    btn.textContent = formatNumberFR(value);
+    btn.addEventListener('click', () => selectEpaisseur(value));
+    gridEpaisseur.appendChild(btn);
+  }
+
+  const btnAutre = document.createElement('button');
+  btnAutre.type = 'button';
+  btnAutre.className = 'tile tile-autre tile-full';
+  btnAutre.textContent = 'Autre';
+  btnAutre.addEventListener('click', async () => {
+    const value = await openModal({
+      title: 'Épaisseur personnalisée',
+      hint: 'Saisissez l\'épaisseur en mm',
+    });
+    if (value === null) return;
+    selectEpaisseur(value);
+  });
+  gridEpaisseur.appendChild(btnAutre);
+}
+
+function selectEpaisseur(value) {
+  state.currentEpaisseur = value;
+  saveState();
   goToPieces();
 }
 
@@ -201,7 +248,7 @@ function buildPiecesGrid() {
 
   const btnAutre = document.createElement('button');
   btnAutre.type = 'button';
-  btnAutre.className = 'tile tile-autre tile-pieces-full';
+  btnAutre.className = 'tile tile-autre tile-full';
   btnAutre.textContent = 'Autre';
   btnAutre.addEventListener('click', async () => {
     const value = await openModal({
@@ -209,7 +256,7 @@ function buildPiecesGrid() {
       hint: 'Saisissez le nombre de pièces par couche',
     });
     if (value === null) return;
-    const label = formatPieces(value);
+    const label = formatNumberFR(value);
     recordCombination({ key: label, label, rank: value });
   });
   gridPieces.appendChild(btnAutre);
@@ -218,20 +265,21 @@ function buildPiecesGrid() {
 /* ---------- Enregistrement des combinaisons ---------- */
 
 function recordCombination(pieces) {
-  if (state.currentLongueur === null) {
+  if (state.currentLongueur === null || state.currentEpaisseur === null) {
     goToLongueur();
     return;
   }
   const lg = state.currentLongueur;
-  const existing = state.records.find((r) => r.lg === lg && r.pcKey === pieces.key);
+  const ep = state.currentEpaisseur;
+  const existing = state.records.find((r) => r.lg === lg && r.ep === ep && r.pcKey === pieces.key);
   if (existing) {
     existing.nb += 1;
   } else {
-    state.records.push({ lg, pcKey: pieces.key, pcLabel: pieces.label, pcRank: pieces.rank, nb: 1 });
+    state.records.push({ lg, ep, pcKey: pieces.key, pcLabel: pieces.label, pcRank: pieces.rank, nb: 1 });
   }
   saveState();
   const nb = existing ? existing.nb : 1;
-  showToast(`${formatLongueur(lg)} · ${pieces.label} pièces/couche — Nb : ${nb}`);
+  showToast(`${formatLongueur(lg)} · ${formatNumberFR(ep)}mm · ${pieces.label} pièces/couche — Nb : ${nb}`);
 }
 
 /* ---------- Résultats ---------- */
@@ -239,6 +287,7 @@ function recordCombination(pieces) {
 function renderResults() {
   const sorted = [...state.records].sort((a, b) => {
     if (a.lg !== b.lg) return a.lg - b.lg;
+    if (a.ep !== b.ep) return a.ep - b.ep;
     if (a.pcRank !== b.pcRank) return a.pcRank - b.pcRank;
     return a.pcLabel.localeCompare(b.pcLabel);
   });
@@ -257,6 +306,7 @@ function renderResults() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${formatLongueur(record.lg)}</td>
+      <td>${formatNumberFR(record.ep)}</td>
       <td>${record.pcLabel}</td>
       <td>${record.nb}</td>
     `;
@@ -280,10 +330,13 @@ document.getElementById('btn-reset').addEventListener('click', () => {
 /* ---------- Liaisons navigation ---------- */
 
 document.getElementById('btn-go-results').addEventListener('click', goToResultats);
-document.getElementById('btn-back-to-longueur').addEventListener('click', goToLongueur);
+document.getElementById('btn-back-to-longueur-from-epaisseur').addEventListener('click', goToLongueur);
+document.getElementById('btn-back-to-epaisseur').addEventListener('click', goToEpaisseur);
 document.getElementById('btn-back-from-results').addEventListener('click', () => {
-  if (state.currentLongueur !== null) {
+  if (state.currentLongueur !== null && state.currentEpaisseur !== null) {
     goToPieces();
+  } else if (state.currentLongueur !== null) {
+    goToEpaisseur();
   } else {
     goToLongueur();
   }
@@ -292,10 +345,13 @@ document.getElementById('btn-back-from-results').addEventListener('click', () =>
 /* ---------- Initialisation ---------- */
 
 buildLongueurGrid();
+buildEpaisseurGrid();
 buildPiecesGrid();
 
-if (state.currentLongueur !== null) {
+if (state.currentLongueur !== null && state.currentEpaisseur !== null) {
   goToPieces();
+} else if (state.currentLongueur !== null) {
+  goToEpaisseur();
 } else {
   goToLongueur();
 }

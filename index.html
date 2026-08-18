@@ -37,19 +37,34 @@
     <div class="grid grid-longueur" id="grid-longueur" role="group" aria-label="Sélection de la longueur"></div>
   </section>
 
-  <!-- PAGE 2 : PIECES / COUCHE -->
-  <section class="page" id="page-pieces" data-page="pieces" hidden>
+  <!-- PAGE 1.1 : EPAISSEUR -->
+  <section class="page" id="page-epaisseur" data-page="epaisseur" hidden>
     <header class="topbar">
-      <button type="button" class="btn-back" id="btn-back-to-longueur" aria-label="Retour au choix de la longueur">
+      <button type="button" class="btn-back" id="btn-back-to-longueur-from-epaisseur" aria-label="Retour au choix de la longueur">
         <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M15.5 4.5 8 12l7.5 7.5 1.4-1.4L10.8 12l6.1-6.1z"/></svg>
       </button>
       <div class="topbar-title">
         <span class="topbar-title-sub">Longueur sélectionnée</span>
-        <span class="topbar-title-main" id="current-longueur-label">—</span>
+        <span class="topbar-title-main" id="current-longueur-label-epaisseur">—</span>
       </div>
     </header>
 
-    <div class="grid grid-pieces" id="grid-pieces" role="group" aria-label="Sélection des pièces par couche"></div>
+    <div class="grid grid-2col" id="grid-epaisseur" role="group" aria-label="Sélection de l'épaisseur"></div>
+  </section>
+
+  <!-- PAGE 2 : PIECES / COUCHE -->
+  <section class="page" id="page-pieces" data-page="pieces" hidden>
+    <header class="topbar">
+      <button type="button" class="btn-back" id="btn-back-to-epaisseur" aria-label="Retour au choix de l'épaisseur">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M15.5 4.5 8 12l7.5 7.5 1.4-1.4L10.8 12l6.1-6.1z"/></svg>
+      </button>
+      <div class="topbar-title">
+        <span class="topbar-title-sub">Longueur · Épaisseur</span>
+        <span class="topbar-title-main" id="current-longueur-epaisseur-label">—</span>
+      </div>
+    </header>
+
+    <div class="grid grid-2col" id="grid-pieces" role="group" aria-label="Sélection des pièces par couche"></div>
   </section>
 
   <!-- PAGE 3 : RESULTATS -->
@@ -72,18 +87,19 @@
           <thead>
             <tr>
               <th>Lg</th>
+              <th>Ep</th>
               <th>Pièces/Couche</th>
               <th>Nb</th>
             </tr>
           </thead>
           <tbody id="results-body">
             <tr class="empty-row" id="results-empty">
-              <td colspan="3">Aucune saisie pour le moment</td>
+              <td colspan="4">Aucune saisie pour le moment</td>
             </tr>
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="2">Total colis</td>
+              <td colspan="3">Total colis</td>
               <td id="results-total">0</td>
             </tr>
           </tfoot>
