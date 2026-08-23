@@ -2,13 +2,13 @@
 
 /* ---------- Persistance ---------- */
 
-const STORAGE_KEY = 'stockPlanches:v6';
+const STORAGE_KEY = 'stockPlanches:v7';
 const HISTORY_LIMIT = 6;
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces' };
+    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', chevronEpaisseur: null };
     const parsed = JSON.parse(raw);
     return {
       records: Array.isArray(parsed.records) ? parsed.records : [],
@@ -17,9 +17,10 @@ function loadState() {
       currentEpaisseur: parsed.currentEpaisseur ?? null,
       epaisseurDual: parsed.epaisseurDual === true,
       pieceDisplayMode: parsed.pieceDisplayMode === 'converted' ? 'converted' : 'pieces',
+      chevronEpaisseur: parsed.chevronEpaisseur ?? null,
     };
   } catch (e) {
-    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces' };
+    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', chevronEpaisseur: null };
   }
 }
 
@@ -31,6 +32,7 @@ function saveState() {
     currentEpaisseur: state.currentEpaisseur,
     epaisseurDual: state.epaisseurDual,
     pieceDisplayMode: state.pieceDisplayMode,
+    chevronEpaisseur: state.chevronEpaisseur,
   }));
 }
 
@@ -92,16 +94,30 @@ function pieceButtonLabel(option) {
   return option.label;
 }
 
+// Chevrons : raccourci depuis la page longueur. Chaque section fixe une
+// épaisseur et un pièces/couche de 14 ; seule la longueur reste à choisir,
+// sur une page dédiée qui reprend les boutons de la page longueur.
+const CHEVRON_SECTIONS = [
+  { label: '63x75', ep: 63 },
+  { label: '75x75', ep: 75 },
+];
+const CHEVRON_PIECES = { key: '14', label: '14', rank: 14 };
+
 /* ---------- Références DOM ---------- */
 
 const pages = {
   longueur: document.getElementById('page-longueur'),
+  chevronSection: document.getElementById('page-chevron-section'),
+  lgChevrons: document.getElementById('page-lg-chevrons'),
   epaisseur: document.getElementById('page-epaisseur'),
   pieces: document.getElementById('page-pieces'),
   resultats: document.getElementById('page-resultats'),
 };
 
 const gridLongueur = document.getElementById('grid-longueur');
+const gridChevronSection = document.getElementById('grid-chevron-section');
+const gridLgChevrons = document.getElementById('grid-lg-chevrons');
+const lgChevronsMain = document.getElementById('lg-chevrons-main');
 const gridEpaisseur = document.getElementById('grid-epaisseur');
 const gridPieces = document.getElementById('grid-pieces');
 let historyPanel = null;
@@ -132,6 +148,17 @@ function showPage(name) {
 
 function goToLongueur() {
   showPage('longueur');
+}
+
+function goToChevronSection() {
+  showPage('chevronSection');
+}
+
+function goToLgChevrons() {
+  lgChevronsMain.textContent = state.chevronEpaisseur !== null
+    ? `${formatNumberFR(state.chevronEpaisseur)} mm`
+    : '—';
+  showPage('lgChevrons');
 }
 
 function goToEpaisseur() {
@@ -254,9 +281,16 @@ function buildLongueurGrid() {
     gridLongueur.appendChild(btn);
   }
 
+  const btnChevrons = document.createElement('button');
+  btnChevrons.type = 'button';
+  btnChevrons.className = 'tile';
+  btnChevrons.textContent = 'Chevrons';
+  btnChevrons.addEventListener('click', goToChevronSection);
+  gridLongueur.appendChild(btnChevrons);
+
   const btnAutre = document.createElement('button');
   btnAutre.type = 'button';
-  btnAutre.className = 'tile tile-autre';
+  btnAutre.className = 'tile tile-autre tile-full';
   btnAutre.textContent = 'Autre';
   btnAutre.addEventListener('click', async () => {
     const value = await openModal({
@@ -273,6 +307,55 @@ function selectLongueur(value) {
   state.currentLongueur = value;
   saveState();
   goToEpaisseur();
+}
+
+function buildChevronSectionGrid() {
+  gridChevronSection.innerHTML = '';
+  for (const section of CHEVRON_SECTIONS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tile';
+    btn.textContent = section.label;
+    btn.addEventListener('click', () => selectChevronSection(section));
+    gridChevronSection.appendChild(btn);
+  }
+}
+
+function selectChevronSection(section) {
+  state.chevronEpaisseur = section.ep;
+  saveState();
+  goToLgChevrons();
+}
+
+function buildLgChevronsGrid() {
+  gridLgChevrons.innerHTML = '';
+
+  for (const value of LONGUEUR_VALUES) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tile';
+    btn.textContent = formatLongueur(value);
+    btn.addEventListener('click', () => recordChevronCombination(value));
+    gridLgChevrons.appendChild(btn);
+  }
+
+  const btnAutre = document.createElement('button');
+  btnAutre.type = 'button';
+  btnAutre.className = 'tile tile-autre';
+  btnAutre.textContent = 'Autre';
+  btnAutre.addEventListener('click', async () => {
+    const value = await openModal({
+      title: 'Longueur personnalisée',
+      hint: 'Saisissez la longueur en mètres (ex. 7,25)',
+    });
+    if (value === null) return;
+    recordChevronCombination(value);
+  });
+  gridLgChevrons.appendChild(btnAutre);
+}
+
+function recordChevronCombination(lgValue) {
+  recordCombination(CHEVRON_PIECES, state.chevronEpaisseur, lgValue);
 }
 
 function buildEpaisseurGrid() {
@@ -440,13 +523,13 @@ function renderHistory() {
 
 /* ---------- Enregistrement des combinaisons ---------- */
 
-function recordCombination(pieces, epOverride) {
+function recordCombination(pieces, epOverride, lgOverride) {
   const ep = epOverride !== undefined ? epOverride : state.currentEpaisseur;
-  if (state.currentLongueur === null || ep === null) {
+  const lg = lgOverride !== undefined ? lgOverride : state.currentLongueur;
+  if (lg === null || ep === null) {
     goToLongueur();
     return;
   }
-  const lg = state.currentLongueur;
   const existing = state.records.find((r) => r.lg === lg && r.ep === ep && r.pcKey === pieces.key);
   if (existing) {
     existing.nb += 1;
@@ -534,6 +617,8 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
 document.getElementById('btn-go-results').addEventListener('click', goToResultats);
 document.getElementById('btn-back-to-longueur-from-epaisseur').addEventListener('click', goToLongueur);
 document.getElementById('btn-back-to-epaisseur').addEventListener('click', goToEpaisseur);
+document.getElementById('btn-back-to-longueur-from-chevron-section').addEventListener('click', goToLongueur);
+document.getElementById('btn-back-to-chevron-section').addEventListener('click', goToChevronSection);
 btnUndoLast.addEventListener('click', undoLastEntry);
 btnTogglePiecesDisplay.addEventListener('click', () => {
   state.pieceDisplayMode = state.pieceDisplayMode === 'converted' ? 'pieces' : 'converted';
@@ -560,10 +645,14 @@ document.getElementById('btn-back-from-results').addEventListener('click', () =>
 /* ---------- Initialisation ---------- */
 
 buildLongueurGrid();
+buildChevronSectionGrid();
+buildLgChevronsGrid();
 buildEpaisseurGrid();
 updateTogglePiecesDisplayButton();
 
-if (state.currentLongueur !== null && (state.currentEpaisseur !== null || state.epaisseurDual)) {
+if (state.chevronEpaisseur !== null) {
+  goToLgChevrons();
+} else if (state.currentLongueur !== null && (state.currentEpaisseur !== null || state.epaisseurDual)) {
   goToPieces();
 } else if (state.currentLongueur !== null) {
   goToEpaisseur();
