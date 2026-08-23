@@ -2,13 +2,13 @@
 
 /* ---------- Persistance ---------- */
 
-const STORAGE_KEY = 'stockPlanches:v5';
+const STORAGE_KEY = 'stockPlanches:v6';
 const HISTORY_LIMIT = 6;
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false };
+    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces' };
     const parsed = JSON.parse(raw);
     return {
       records: Array.isArray(parsed.records) ? parsed.records : [],
@@ -16,9 +16,10 @@ function loadState() {
       currentLongueur: parsed.currentLongueur ?? null,
       currentEpaisseur: parsed.currentEpaisseur ?? null,
       epaisseurDual: parsed.epaisseurDual === true,
+      pieceDisplayMode: parsed.pieceDisplayMode === 'converted' ? 'converted' : 'pieces',
     };
   } catch (e) {
-    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false };
+    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces' };
   }
 }
 
@@ -29,6 +30,7 @@ function saveState() {
     currentLongueur: state.currentLongueur,
     currentEpaisseur: state.currentEpaisseur,
     epaisseurDual: state.epaisseurDual,
+    pieceDisplayMode: state.pieceDisplayMode,
   }));
 }
 
@@ -71,6 +73,25 @@ const PIECES_OPTIONS = [
   { key: '11', label: '11', rank: 11 },
 ];
 
+// Affichage alternatif des boutons pièces/couche (bouton en haut à droite
+// de la page 2). Purement visuel : l'enregistrement, l'historique et les
+// résultats continuent toujours d'utiliser la valeur pièces/couche réelle.
+const PIECES_DISPLAY_CONVERSION = {
+  '5': '200',
+  '5.': '225',
+  '6': '175',
+  '7': '150',
+  '10': '10',
+  '11': '100',
+};
+
+function pieceButtonLabel(option) {
+  if (state.pieceDisplayMode === 'converted') {
+    return PIECES_DISPLAY_CONVERSION[option.key] ?? option.label;
+  }
+  return option.label;
+}
+
 /* ---------- Références DOM ---------- */
 
 const pages = {
@@ -87,6 +108,7 @@ let historyPanel = null;
 const currentLongueurLabelEpaisseur = document.getElementById('current-longueur-label-epaisseur');
 const currentLongueurEpaisseurLabel = document.getElementById('current-longueur-epaisseur-label');
 const btnUndoLast = document.getElementById('btn-undo-last');
+const btnTogglePiecesDisplay = document.getElementById('btn-toggle-pieces-display');
 const resultsBody = document.getElementById('results-body');
 const resultsEmptyRow = document.getElementById('results-empty');
 const resultsTotal = document.getElementById('results-total');
@@ -324,7 +346,7 @@ function buildPiecesGridSingle() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'tile';
-    btn.textContent = option.label;
+    btn.textContent = pieceButtonLabel(option);
     btn.addEventListener('click', () => recordCombination(option));
     gridPieces.appendChild(btn);
   }
@@ -393,7 +415,7 @@ function appendPiecesTile(option, ep) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'tile';
-  btn.textContent = option.label;
+  btn.textContent = pieceButtonLabel(option);
   btn.addEventListener('click', () => recordCombination(option, ep));
   gridPieces.appendChild(btn);
 }
@@ -513,6 +535,18 @@ document.getElementById('btn-go-results').addEventListener('click', goToResultat
 document.getElementById('btn-back-to-longueur-from-epaisseur').addEventListener('click', goToLongueur);
 document.getElementById('btn-back-to-epaisseur').addEventListener('click', goToEpaisseur);
 btnUndoLast.addEventListener('click', undoLastEntry);
+btnTogglePiecesDisplay.addEventListener('click', () => {
+  state.pieceDisplayMode = state.pieceDisplayMode === 'converted' ? 'pieces' : 'converted';
+  saveState();
+  updateTogglePiecesDisplayButton();
+  buildPiecesGrid();
+  showToast(state.pieceDisplayMode === 'converted' ? 'Affichage : valeurs converties' : 'Affichage : pièces/couche');
+});
+
+function updateTogglePiecesDisplayButton() {
+  const active = state.pieceDisplayMode === 'converted';
+  btnTogglePiecesDisplay.setAttribute('aria-pressed', String(active));
+}
 document.getElementById('btn-back-from-results').addEventListener('click', () => {
   if (state.currentLongueur !== null && (state.currentEpaisseur !== null || state.epaisseurDual)) {
     goToPieces();
@@ -527,6 +561,7 @@ document.getElementById('btn-back-from-results').addEventListener('click', () =>
 
 buildLongueurGrid();
 buildEpaisseurGrid();
+updateTogglePiecesDisplayButton();
 
 if (state.currentLongueur !== null && (state.currentEpaisseur !== null || state.epaisseurDual)) {
   goToPieces();

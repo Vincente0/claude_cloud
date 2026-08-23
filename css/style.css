@@ -114,6 +114,11 @@ body {
 
 .btn-back:active, .btn-reset:active { transform: scale(0.92); }
 
+.btn-back[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: #fff;
+}
+
 .btn-results {
   display: flex;
   align-items: center;
