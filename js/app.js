@@ -632,15 +632,10 @@ function updateTogglePiecesDisplayButton() {
   const active = state.pieceDisplayMode === 'converted';
   btnTogglePiecesDisplay.setAttribute('aria-pressed', String(active));
 }
-document.getElementById('btn-back-from-results').addEventListener('click', () => {
-  if (state.currentLongueur !== null && (state.currentEpaisseur !== null || state.epaisseurDual)) {
-    goToPieces();
-  } else if (state.currentLongueur !== null) {
-    goToEpaisseur();
-  } else {
-    goToLongueur();
-  }
-});
+// Résultats n'est accessible que depuis la page Longueur (bouton en haut
+// à droite) : le retour ramène donc toujours directement à cette page,
+// plutôt que de deviner où reprendre.
+document.getElementById('btn-back-from-results').addEventListener('click', goToLongueur);
 
 /* ---------- Initialisation ---------- */
 
