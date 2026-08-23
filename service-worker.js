@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'stock-planches-v7';
+const CACHE_NAME = 'stock-planches-v8';
 const APP_SHELL = [
   './',
   './index.html',
