@@ -2,13 +2,13 @@
 
 /* ---------- Persistance ---------- */
 
-const STORAGE_KEY = 'stockPlanches:v8';
+const STORAGE_KEY = 'stockPlanches:v9';
 const HISTORY_LIMIT = 6;
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', chevronEpaisseur: null };
+    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', chevronEpaisseur: null, grade27Quality: null };
     const parsed = JSON.parse(raw);
     return {
       records: Array.isArray(parsed.records) ? parsed.records : [],
@@ -18,9 +18,10 @@ function loadState() {
       epaisseurDual: parsed.epaisseurDual === true,
       pieceDisplayMode: parsed.pieceDisplayMode === 'converted' ? 'converted' : 'pieces',
       chevronEpaisseur: parsed.chevronEpaisseur ?? null,
+      grade27Quality: parsed.grade27Quality ?? null,
     };
   } catch (e) {
-    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', chevronEpaisseur: null };
+    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', chevronEpaisseur: null, grade27Quality: null };
   }
 }
 
@@ -33,6 +34,7 @@ function saveState() {
     epaisseurDual: state.epaisseurDual,
     pieceDisplayMode: state.pieceDisplayMode,
     chevronEpaisseur: state.chevronEpaisseur,
+    grade27Quality: state.grade27Quality,
   }));
 }
 
@@ -103,6 +105,19 @@ const CHEVRON_SECTIONS = [
 ];
 const CHEVRON_PIECES = { key: '14', label: '14', rank: 14 };
 
+// Page pc, épaisseur 27 uniquement : "Autre" se double de deux raccourcis
+// qualité, chacun avec un pièces/couche fixe. Le choix ouvre pagegrade27
+// pour sélectionner le grade (3 / 3A / 3B), qui enregistre directement.
+const GRADE27_QUALITIES = [
+  { key: '200', label: '200 qual', pieces: { key: '5', label: '5', rank: 5 } },
+  { key: '250', label: '250 qual', pieces: { key: '4', label: '4', rank: 4 } },
+];
+const GRADE27_OPTIONS = [
+  { key: '3', label: '3' },
+  { key: '3A', label: '3A' },
+  { key: '3B', label: '3B' },
+];
+
 /* ---------- Références DOM ---------- */
 
 const pages = {
@@ -111,6 +126,7 @@ const pages = {
   lgChevrons: document.getElementById('page-lg-chevrons'),
   epaisseur: document.getElementById('page-epaisseur'),
   pieces: document.getElementById('page-pieces'),
+  grade27: document.getElementById('page-grade27'),
   resultats: document.getElementById('page-resultats'),
 };
 
@@ -120,6 +136,9 @@ const gridLgChevrons = document.getElementById('grid-lg-chevrons');
 const lgChevronsMain = document.getElementById('lg-chevrons-main');
 const gridEpaisseur = document.getElementById('grid-epaisseur');
 const gridPieces = document.getElementById('grid-pieces');
+const gridGrade27 = document.getElementById('grid-grade27');
+const grade27Sub = document.getElementById('grade27-sub');
+const grade27Main = document.getElementById('grade27-main');
 let historyPanel = null;
 const currentLongueurLabelEpaisseur = document.getElementById('current-longueur-label-epaisseur');
 const currentLongueurEpaisseurLabel = document.getElementById('current-longueur-epaisseur-label');
@@ -180,6 +199,24 @@ function goToPieces() {
   }
   buildPiecesGrid();
   showPage('pieces');
+}
+
+function goToGrade27() {
+  const quality = GRADE27_QUALITIES.find((q) => q.key === state.grade27Quality);
+  if (quality && state.currentLongueur !== null) {
+    grade27Sub.textContent = `27mm · ${quality.label} · ${quality.pieces.label} pièces/couche`;
+    grade27Main.textContent = formatLongueur(state.currentLongueur);
+  } else {
+    grade27Sub.textContent = '—';
+    grade27Main.textContent = '—';
+  }
+  showPage('grade27');
+}
+
+function selectGrade27Quality(qualityKey) {
+  state.grade27Quality = qualityKey;
+  saveState();
+  goToGrade27();
 }
 
 function goToResultats() {
@@ -506,6 +543,19 @@ function buildPiecesGridSingle() {
     recordCombination({ key: label, label, rank: value }, undefined, undefined, grade);
   });
   gridPieces.appendChild(btnAutre);
+
+  // Spécifique à l'épaisseur 27 : deux raccourcis qualité ouvrant la
+  // sélection de grade (voir buildGrade27Grid), en plus de "Autre".
+  if (state.currentEpaisseur === 27) {
+    for (const quality of GRADE27_QUALITIES) {
+      const btnQuality = document.createElement('button');
+      btnQuality.type = 'button';
+      btnQuality.className = 'tile';
+      btnQuality.textContent = quality.label;
+      btnQuality.addEventListener('click', () => selectGrade27Quality(quality.key));
+      gridPieces.appendChild(btnQuality);
+    }
+  }
 }
 
 // Grille 4 colonnes : les 2 premières colonnes pour l'épaisseur 63,
@@ -561,6 +611,24 @@ function appendPiecesTile(option, ep) {
   gridPieces.appendChild(btn);
 }
 
+function buildGrade27Grid() {
+  gridGrade27.innerHTML = '';
+  for (const option of GRADE27_OPTIONS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tile';
+    btn.textContent = option.label;
+    bindRecordGesture(btn, (grade) => recordGrade27Combination(option, grade));
+    gridGrade27.appendChild(btn);
+  }
+}
+
+function recordGrade27Combination(gradeOption, declasseGrade) {
+  const quality = GRADE27_QUALITIES.find((q) => q.key === state.grade27Quality);
+  if (!quality) return;
+  recordCombination(quality.pieces, 27, undefined, declasseGrade, gradeOption);
+}
+
 /* ---------- Historique des derniers enregistrements ---------- */
 
 function renderHistory() {
@@ -575,45 +643,57 @@ function renderHistory() {
   // plus récent apparaisse tout en bas, comme un journal qui s'allonge.
   historyPanel.innerHTML = [...state.history]
     .reverse()
-    .map((h) => {
-      const gradeSuffix = h.grade === 'declasse' ? ' · Déclassé' : '';
-      return `<p class="history-line">${formatLongueur(h.lg)} ${formatNumberFR(h.ep)} - ${h.pcLabel}${gradeSuffix}</p>`;
-    })
+    .map((h) => `<p class="history-line">${formatLongueur(h.lg)} ${formatNumberFR(h.ep)} - ${h.pcLabel}${gradeSuffixText(h)}</p>`)
     .join('');
+}
+
+// Libellé de grade affiché en complément (historique, toast, résultats) :
+// - qualityGrade présent (page pc, épaisseur 27) → "3", "3A Déclassé", etc.
+// - sinon, seul le drapeau Déclassé compte → " · Déclassé" ou rien.
+function gradeSuffixText(record) {
+  if (record.qualityGrade) {
+    return record.declasse ? ` · ${record.qualityGradeLabel} Déclassé` : ` · ${record.qualityGradeLabel}`;
+  }
+  return record.declasse ? ' · Déclassé' : '';
 }
 
 /* ---------- Enregistrement des combinaisons ---------- */
 
-function recordCombination(pieces, epOverride, lgOverride, grade) {
+function recordCombination(pieces, epOverride, lgOverride, grade, qualityGrade) {
   const ep = epOverride !== undefined ? epOverride : state.currentEpaisseur;
   const lg = lgOverride !== undefined ? lgOverride : state.currentLongueur;
-  const g = grade === 'declasse' ? 'declasse' : 'normal';
+  const declasse = grade === 'declasse';
+  const qKey = qualityGrade ? qualityGrade.key : null;
+  const qLabel = qualityGrade ? qualityGrade.label : null;
   if (lg === null || ep === null) {
     goToLongueur();
     return;
   }
   const existing = state.records.find(
-    (r) => r.lg === lg && r.ep === ep && r.pcKey === pieces.key && r.grade === g
+    (r) => r.lg === lg && r.ep === ep && r.pcKey === pieces.key && r.declasse === declasse && r.qualityGrade === qKey
   );
   if (existing) {
     existing.nb += 1;
   } else {
-    state.records.push({ lg, ep, pcKey: pieces.key, pcLabel: pieces.label, pcRank: pieces.rank, grade: g, nb: 1 });
+    state.records.push({
+      lg, ep, pcKey: pieces.key, pcLabel: pieces.label, pcRank: pieces.rank,
+      declasse, qualityGrade: qKey, qualityGradeLabel: qLabel, nb: 1,
+    });
   }
-  state.history.unshift({ lg, ep, pcKey: pieces.key, pcLabel: pieces.label, grade: g });
+  const historyEntry = { lg, ep, pcKey: pieces.key, pcLabel: pieces.label, declasse, qualityGrade: qKey, qualityGradeLabel: qLabel };
+  state.history.unshift(historyEntry);
   state.history = state.history.slice(0, HISTORY_LIMIT);
   saveState();
   renderHistory();
   const nb = existing ? existing.nb : 1;
-  const gradeSuffix = g === 'declasse' ? ' · Déclassé' : '';
-  showToast(`${formatLongueur(lg)} · ${formatNumberFR(ep)}mm · ${pieces.label} pièces/couche — Nb : ${nb}${gradeSuffix}`);
+  showToast(`${formatLongueur(lg)} · ${formatNumberFR(ep)}mm · ${pieces.label} pièces/couche — Nb : ${nb}${gradeSuffixText(historyEntry)}`);
 }
 
 function undoLastEntry() {
   if (state.history.length === 0) return;
   const last = state.history.shift();
   const existing = state.records.find(
-    (r) => r.lg === last.lg && r.ep === last.ep && r.pcKey === last.pcKey && r.grade === last.grade
+    (r) => r.lg === last.lg && r.ep === last.ep && r.pcKey === last.pcKey && r.declasse === last.declasse && r.qualityGrade === last.qualityGrade
   );
   if (existing) {
     existing.nb -= 1;
@@ -623,8 +703,7 @@ function undoLastEntry() {
   }
   saveState();
   renderHistory();
-  const gradeSuffix = last.grade === 'declasse' ? ' · Déclassé' : '';
-  showToast(`Annulé : ${formatLongueur(last.lg)} · ${formatNumberFR(last.ep)}mm · ${last.pcLabel} pièces/couche${gradeSuffix}`);
+  showToast(`Annulé : ${formatLongueur(last.lg)} · ${formatNumberFR(last.ep)}mm · ${last.pcLabel} pièces/couche${gradeSuffixText(last)}`);
 }
 
 /* ---------- Résultats ---------- */
@@ -635,7 +714,10 @@ function renderResults() {
     if (a.ep !== b.ep) return a.ep - b.ep;
     if (a.pcRank !== b.pcRank) return a.pcRank - b.pcRank;
     if (a.pcLabel !== b.pcLabel) return a.pcLabel.localeCompare(b.pcLabel);
-    return (a.grade === 'declasse' ? 1 : 0) - (b.grade === 'declasse' ? 1 : 0);
+    const qa = a.qualityGrade || '';
+    const qb = b.qualityGrade || '';
+    if (qa !== qb) return qa.localeCompare(qb);
+    return (a.declasse ? 1 : 0) - (b.declasse ? 1 : 0);
   });
 
   resultsBody.innerHTML = '';
@@ -650,17 +732,26 @@ function renderResults() {
   for (const record of sorted) {
     total += record.nb;
     const tr = document.createElement('tr');
-    const gradeCell = record.grade === 'declasse' ? '<span class="grade-badge">Déclassé</span>' : '';
     tr.innerHTML = `
       <td>${formatLongueur(record.lg)}</td>
       <td>${formatNumberFR(record.ep)}</td>
       <td>${record.pcLabel}</td>
-      <td>${gradeCell}</td>
+      <td>${renderGradeCell(record)}</td>
       <td>${record.nb}</td>
     `;
     resultsBody.appendChild(tr);
   }
   resultsTotal.textContent = String(total);
+}
+
+function renderGradeCell(record) {
+  if (record.qualityGrade) {
+    const label = record.declasse ? `${record.qualityGradeLabel} Déclassé` : record.qualityGradeLabel;
+    const cls = record.declasse ? 'grade-badge' : 'grade-plain';
+    return `<span class="${cls}">${label}</span>`;
+  }
+  if (record.declasse) return '<span class="grade-badge">Déclassé</span>';
+  return '';
 }
 
 /* ---------- Réinitialisation ---------- */
@@ -688,6 +779,7 @@ document.getElementById('btn-back-to-longueur-from-epaisseur').addEventListener(
 document.getElementById('btn-back-to-epaisseur').addEventListener('click', goToEpaisseur);
 document.getElementById('btn-back-to-longueur-from-chevron-section').addEventListener('click', goToLongueur);
 document.getElementById('btn-back-to-chevron-section').addEventListener('click', goToChevronSection);
+document.getElementById('btn-back-to-pieces-from-grade27').addEventListener('click', goToPieces);
 btnUndoLast.addEventListener('click', undoLastEntry);
 btnTogglePiecesDisplay.addEventListener('click', () => {
   state.pieceDisplayMode = state.pieceDisplayMode === 'converted' ? 'pieces' : 'converted';
@@ -712,10 +804,13 @@ buildLongueurGrid();
 buildChevronSectionGrid();
 buildLgChevronsGrid();
 buildEpaisseurGrid();
+buildGrade27Grid();
 updateTogglePiecesDisplayButton();
 
 if (state.chevronEpaisseur !== null) {
   goToLgChevrons();
+} else if (state.grade27Quality !== null && state.currentEpaisseur === 27) {
+  goToGrade27();
 } else if (state.currentLongueur !== null && (state.currentEpaisseur !== null || state.epaisseurDual)) {
   goToPieces();
 } else if (state.currentLongueur !== null) {

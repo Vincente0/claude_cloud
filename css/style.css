@@ -154,6 +154,11 @@ body {
   grid-auto-rows: 1fr;
 }
 
+.grid-3col {
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 1fr;
+}
+
 .grid-4col {
   grid-template-columns: repeat(4, 1fr);
   grid-template-rows: auto repeat(4, 1fr) minmax(150px, auto);
@@ -461,6 +466,11 @@ body {
   padding: 3px 8px;
   border-radius: 999px;
   white-space: nowrap;
+}
+
+.grade-plain {
+  font-weight: 700;
+  color: var(--color-ink);
 }
 
 .results-table tbody tr:active { background: var(--color-bg); }
