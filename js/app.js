@@ -272,8 +272,8 @@ confirmOkBtn.addEventListener('click', () => closeConfirm(true));
    Le grade se décide au relâchement, selon la position du doigt à ce
    moment (l'utilisateur peut remonter pour annuler avant de lâcher). */
 
-const DECLASSE_DRAG_THRESHOLD = 120;
-const DECLASSE_DRAG_RELEASE = 72; // hystérésis pour désarmer en remontant
+const DECLASSE_DRAG_THRESHOLD = 150;
+const DECLASSE_DRAG_RELEASE = 90; // hystérésis pour désarmer en remontant
 const DECLASSE_VISUAL_CAP = 22;
 
 function bindRecordGesture(el, onRecord) {
