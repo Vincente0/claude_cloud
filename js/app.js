@@ -2,7 +2,7 @@
 
 /* ---------- Persistance ---------- */
 
-const STORAGE_KEY = 'stockPlanches:v7';
+const STORAGE_KEY = 'stockPlanches:v8';
 const HISTORY_LIMIT = 6;
 
 function loadState() {
@@ -267,6 +267,64 @@ confirmOverlay.addEventListener('click', (e) => {
 });
 confirmOkBtn.addEventListener('click', () => closeConfirm(true));
 
+/* ---------- Geste d'enregistrement : tap normal = "normal",
+   appui + glissement vers le bas au-delà du seuil = "declasse".
+   Le grade se décide au relâchement, selon la position du doigt à ce
+   moment (l'utilisateur peut remonter pour annuler avant de lâcher). */
+
+const DECLASSE_DRAG_THRESHOLD = 40;
+const DECLASSE_DRAG_RELEASE = 24; // hystérésis pour désarmer en remontant
+const DECLASSE_VISUAL_CAP = 22;
+
+function bindRecordGesture(el, onRecord) {
+  let pointerId = null;
+  let startY = 0;
+  let armed = false;
+
+  function setArmed(next) {
+    if (next === armed) return;
+    armed = next;
+    el.classList.toggle('tile-armed', armed);
+  }
+
+  function cleanup() {
+    el.classList.remove('tile-pressing');
+    el.classList.remove('tile-armed');
+    el.style.transform = '';
+    pointerId = null;
+    armed = false;
+  }
+
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pointerId = e.pointerId;
+    startY = e.clientY;
+    armed = false;
+    el.classList.add('tile-pressing');
+    try { el.setPointerCapture(pointerId); } catch (err) { /* ignore */ }
+  });
+
+  el.addEventListener('pointermove', (e) => {
+    if (pointerId === null || e.pointerId !== pointerId) return;
+    const dy = e.clientY - startY;
+    if (!armed && dy > DECLASSE_DRAG_THRESHOLD) setArmed(true);
+    else if (armed && dy < DECLASSE_DRAG_RELEASE) setArmed(false);
+    el.style.transform = `translateY(${Math.max(0, Math.min(dy, DECLASSE_VISUAL_CAP))}px)`;
+  });
+
+  el.addEventListener('pointerup', (e) => {
+    if (pointerId === null || e.pointerId !== pointerId) return;
+    const grade = armed ? 'declasse' : 'normal';
+    cleanup();
+    onRecord(grade);
+  });
+
+  el.addEventListener('pointercancel', (e) => {
+    if (pointerId === null || e.pointerId !== pointerId) return;
+    cleanup();
+  });
+}
+
 /* ---------- Construction des grilles ---------- */
 
 function buildLongueurGrid() {
@@ -335,7 +393,7 @@ function buildLgChevronsGrid() {
     btn.type = 'button';
     btn.className = 'tile';
     btn.textContent = formatLongueur(value);
-    btn.addEventListener('click', () => recordChevronCombination(value));
+    bindRecordGesture(btn, (grade) => recordChevronCombination(value, grade));
     gridLgChevrons.appendChild(btn);
   }
 
@@ -343,19 +401,19 @@ function buildLgChevronsGrid() {
   btnAutre.type = 'button';
   btnAutre.className = 'tile tile-autre';
   btnAutre.textContent = 'Autre';
-  btnAutre.addEventListener('click', async () => {
+  bindRecordGesture(btnAutre, async (grade) => {
     const value = await openModal({
       title: 'Longueur personnalisée',
       hint: 'Saisissez la longueur en mètres (ex. 7,25)',
     });
     if (value === null) return;
-    recordChevronCombination(value);
+    recordChevronCombination(value, grade);
   });
   gridLgChevrons.appendChild(btnAutre);
 }
 
-function recordChevronCombination(lgValue) {
-  recordCombination(CHEVRON_PIECES, state.chevronEpaisseur, lgValue);
+function recordChevronCombination(lgValue, grade) {
+  recordCombination(CHEVRON_PIECES, state.chevronEpaisseur, lgValue, grade);
 }
 
 function buildEpaisseurGrid() {
@@ -430,7 +488,7 @@ function buildPiecesGridSingle() {
     btn.type = 'button';
     btn.className = 'tile';
     btn.textContent = pieceButtonLabel(option);
-    btn.addEventListener('click', () => recordCombination(option));
+    bindRecordGesture(btn, (grade) => recordCombination(option, undefined, undefined, grade));
     gridPieces.appendChild(btn);
   }
 
@@ -438,14 +496,14 @@ function buildPiecesGridSingle() {
   btnAutre.type = 'button';
   btnAutre.className = 'tile tile-autre';
   btnAutre.textContent = 'Autre';
-  btnAutre.addEventListener('click', async () => {
+  bindRecordGesture(btnAutre, async (grade) => {
     const value = await openModal({
       title: 'Pièces / couche personnalisé',
       hint: 'Saisissez le nombre de pièces par couche',
     });
     if (value === null) return;
     const label = formatNumberFR(value);
-    recordCombination({ key: label, label, rank: value });
+    recordCombination({ key: label, label, rank: value }, undefined, undefined, grade);
   });
   gridPieces.appendChild(btnAutre);
 }
@@ -481,14 +539,14 @@ function buildPiecesGridDual() {
     btnAutre.type = 'button';
     btnAutre.className = 'tile tile-autre tile-half-span';
     btnAutre.textContent = `Autre ${formatNumberFR(ep)}`;
-    btnAutre.addEventListener('click', async () => {
+    bindRecordGesture(btnAutre, async (grade) => {
       const value = await openModal({
         title: `Pièces / couche personnalisé — ${formatNumberFR(ep)} mm`,
         hint: 'Saisissez le nombre de pièces par couche',
       });
       if (value === null) return;
       const label = formatNumberFR(value);
-      recordCombination({ key: label, label, rank: value }, ep);
+      recordCombination({ key: label, label, rank: value }, ep, undefined, grade);
     });
     gridPieces.appendChild(btnAutre);
   }
@@ -499,7 +557,7 @@ function appendPiecesTile(option, ep) {
   btn.type = 'button';
   btn.className = 'tile';
   btn.textContent = pieceButtonLabel(option);
-  btn.addEventListener('click', () => recordCombination(option, ep));
+  bindRecordGesture(btn, (grade) => recordCombination(option, ep, undefined, grade));
   gridPieces.appendChild(btn);
 }
 
@@ -517,38 +575,45 @@ function renderHistory() {
   // plus récent apparaisse tout en bas, comme un journal qui s'allonge.
   historyPanel.innerHTML = [...state.history]
     .reverse()
-    .map((h) => `<p class="history-line">${formatLongueur(h.lg)} ${formatNumberFR(h.ep)} - ${h.pcLabel}</p>`)
+    .map((h) => {
+      const gradeSuffix = h.grade === 'declasse' ? ' · Déclassé' : '';
+      return `<p class="history-line">${formatLongueur(h.lg)} ${formatNumberFR(h.ep)} - ${h.pcLabel}${gradeSuffix}</p>`;
+    })
     .join('');
 }
 
 /* ---------- Enregistrement des combinaisons ---------- */
 
-function recordCombination(pieces, epOverride, lgOverride) {
+function recordCombination(pieces, epOverride, lgOverride, grade) {
   const ep = epOverride !== undefined ? epOverride : state.currentEpaisseur;
   const lg = lgOverride !== undefined ? lgOverride : state.currentLongueur;
+  const g = grade === 'declasse' ? 'declasse' : 'normal';
   if (lg === null || ep === null) {
     goToLongueur();
     return;
   }
-  const existing = state.records.find((r) => r.lg === lg && r.ep === ep && r.pcKey === pieces.key);
+  const existing = state.records.find(
+    (r) => r.lg === lg && r.ep === ep && r.pcKey === pieces.key && r.grade === g
+  );
   if (existing) {
     existing.nb += 1;
   } else {
-    state.records.push({ lg, ep, pcKey: pieces.key, pcLabel: pieces.label, pcRank: pieces.rank, nb: 1 });
+    state.records.push({ lg, ep, pcKey: pieces.key, pcLabel: pieces.label, pcRank: pieces.rank, grade: g, nb: 1 });
   }
-  state.history.unshift({ lg, ep, pcKey: pieces.key, pcLabel: pieces.label });
+  state.history.unshift({ lg, ep, pcKey: pieces.key, pcLabel: pieces.label, grade: g });
   state.history = state.history.slice(0, HISTORY_LIMIT);
   saveState();
   renderHistory();
   const nb = existing ? existing.nb : 1;
-  showToast(`${formatLongueur(lg)} · ${formatNumberFR(ep)}mm · ${pieces.label} pièces/couche — Nb : ${nb}`);
+  const gradeSuffix = g === 'declasse' ? ' · Déclassé' : '';
+  showToast(`${formatLongueur(lg)} · ${formatNumberFR(ep)}mm · ${pieces.label} pièces/couche — Nb : ${nb}${gradeSuffix}`);
 }
 
 function undoLastEntry() {
   if (state.history.length === 0) return;
   const last = state.history.shift();
   const existing = state.records.find(
-    (r) => r.lg === last.lg && r.ep === last.ep && r.pcKey === last.pcKey
+    (r) => r.lg === last.lg && r.ep === last.ep && r.pcKey === last.pcKey && r.grade === last.grade
   );
   if (existing) {
     existing.nb -= 1;
@@ -558,7 +623,8 @@ function undoLastEntry() {
   }
   saveState();
   renderHistory();
-  showToast(`Annulé : ${formatLongueur(last.lg)} · ${formatNumberFR(last.ep)}mm · ${last.pcLabel} pièces/couche`);
+  const gradeSuffix = last.grade === 'declasse' ? ' · Déclassé' : '';
+  showToast(`Annulé : ${formatLongueur(last.lg)} · ${formatNumberFR(last.ep)}mm · ${last.pcLabel} pièces/couche${gradeSuffix}`);
 }
 
 /* ---------- Résultats ---------- */
@@ -568,7 +634,8 @@ function renderResults() {
     if (a.lg !== b.lg) return a.lg - b.lg;
     if (a.ep !== b.ep) return a.ep - b.ep;
     if (a.pcRank !== b.pcRank) return a.pcRank - b.pcRank;
-    return a.pcLabel.localeCompare(b.pcLabel);
+    if (a.pcLabel !== b.pcLabel) return a.pcLabel.localeCompare(b.pcLabel);
+    return (a.grade === 'declasse' ? 1 : 0) - (b.grade === 'declasse' ? 1 : 0);
   });
 
   resultsBody.innerHTML = '';
@@ -583,10 +650,12 @@ function renderResults() {
   for (const record of sorted) {
     total += record.nb;
     const tr = document.createElement('tr');
+    const gradeCell = record.grade === 'declasse' ? '<span class="grade-badge">Déclassé</span>' : '';
     tr.innerHTML = `
       <td>${formatLongueur(record.lg)}</td>
       <td>${formatNumberFR(record.ep)}</td>
       <td>${record.pcLabel}</td>
+      <td>${gradeCell}</td>
       <td>${record.nb}</td>
     `;
     resultsBody.appendChild(tr);
