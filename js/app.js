@@ -464,7 +464,7 @@ function bindSwipeGesture(el, onSwipe) {
   let startY = 0;
 
   function cleanup() {
-    el.classList.remove('tile-pressing', 'tile-swipe-armed');
+    el.classList.remove('tile-pressing', 'tile-swipe-armed', 'is-normal', 'is-declasse');
     el.removeAttribute('data-armed-label');
     el.style.transform = '';
     pointerId = null;
@@ -486,9 +486,11 @@ function bindSwipeGesture(el, onSwipe) {
     const dir = resolveSwipeDirection(dx, dy);
     if (dir) {
       el.classList.add('tile-swipe-armed');
+      el.classList.toggle('is-declasse', dir.declasse);
+      el.classList.toggle('is-normal', !dir.declasse);
       el.dataset.armedLabel = dir.label;
     } else {
-      el.classList.remove('tile-swipe-armed');
+      el.classList.remove('tile-swipe-armed', 'is-normal', 'is-declasse');
       el.removeAttribute('data-armed-label');
     }
     const distance = Math.hypot(dx, dy);

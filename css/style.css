@@ -9,6 +9,7 @@
   --color-card-border: #E1DCCF;
   --color-amber: #D8A857;
   --color-amber-dark: #B9832F;
+  --color-declasse-gray: #6B7280;
   --color-danger: #B23A2E;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -241,9 +242,9 @@ body {
 }
 
 .tile-armed {
-  background: var(--color-amber-dark) !important;
+  background: var(--color-declasse-gray) !important;
   color: #fff !important;
-  border-color: var(--color-amber-dark) !important;
+  border-color: var(--color-declasse-gray) !important;
 }
 
 .tile-armed::after {
@@ -262,9 +263,17 @@ body {
 /* Geste à 4 directions (page pièces/couche 63/75) : haut/bas = épaisseur,
    diagonale droite = Déclassé. Voir bindSwipeGesture dans app.js. */
 .tile-swipe-armed {
-  background: var(--color-amber-dark) !important;
   color: #fff !important;
-  border-color: var(--color-amber-dark) !important;
+}
+
+.tile-swipe-armed.is-normal {
+  background: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+}
+
+.tile-swipe-armed.is-declasse {
+  background: var(--color-declasse-gray) !important;
+  border-color: var(--color-declasse-gray) !important;
 }
 
 .tile-swipe-armed::after {
