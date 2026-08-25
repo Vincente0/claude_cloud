@@ -432,32 +432,27 @@ const SWIPE_VISUAL_CAP = 22;
 
 // Angles en coordonnées écran (atan2(dy, dx), y vers le bas) : haut = -90°,
 // bas = 90°, diagonale haut-droite = -45°, diagonale bas-droite = 45°.
+// Les zones "Normal" (haut/bas) sont volontairement larges vers la gauche
+// (un glissement haut-gauche valide quand même 75 Normal, bas-gauche valide
+// 63 Normal) ; seul le côté droit reste borné par la zone Déclassé
+// adjacente, pour ne pas empiéter dessus. Un glissement vers la droite
+// (hors des zones Déclassé) reste une direction indéfinie : rien ne
+// s'enregistre.
 const SWIPE_DIRECTIONS = [
-  { angle: -90, ep: 75, declasse: false, label: '75 · Normal' },
-  { angle: 90, ep: 63, declasse: false, label: '63 · Normal' },
-  { angle: -45, ep: 75, declasse: true, label: '75 · Déclassé' },
-  { angle: 45, ep: 63, declasse: true, label: '63 · Déclassé' },
+  { minAngle: -45 - SWIPE_ANGLE_TOLERANCE, maxAngle: -45 + SWIPE_ANGLE_TOLERANCE, ep: 75, declasse: true, label: '75 · Déclassé' },
+  { minAngle: 45 - SWIPE_ANGLE_TOLERANCE, maxAngle: 45 + SWIPE_ANGLE_TOLERANCE, ep: 63, declasse: true, label: '63 · Déclassé' },
+  { minAngle: -180, maxAngle: -45 - SWIPE_ANGLE_TOLERANCE, ep: 75, declasse: false, label: '75 · Normal' },
+  { minAngle: 45 + SWIPE_ANGLE_TOLERANCE, maxAngle: 180, ep: 63, declasse: false, label: '63 · Normal' },
 ];
-
-function angleDiff(a, b) {
-  const d = Math.abs(a - b) % 360;
-  return d > 180 ? 360 - d : d;
-}
 
 function resolveSwipeDirection(dx, dy) {
   const distance = Math.hypot(dx, dy);
   if (distance < SWIPE_MIN_DISTANCE) return null;
   const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-  let best = null;
-  let bestDiff = Infinity;
   for (const dir of SWIPE_DIRECTIONS) {
-    const diff = angleDiff(angle, dir.angle);
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = dir;
-    }
+    if (angle >= dir.minAngle && angle <= dir.maxAngle) return dir;
   }
-  return bestDiff <= SWIPE_ANGLE_TOLERANCE ? best : null;
+  return null;
 }
 
 function bindSwipeGesture(el, onSwipe) {
