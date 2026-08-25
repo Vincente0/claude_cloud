@@ -747,8 +747,8 @@ function undoLastEntry() {
 
 /* ---------- Résultats ---------- */
 
-function renderResults() {
-  const sorted = [...state.records].sort((a, b) => {
+function getSortedRecords() {
+  return [...state.records].sort((a, b) => {
     if (a.lg !== b.lg) return a.lg - b.lg;
     if (a.ep !== b.ep) return a.ep - b.ep;
     if (a.pcRank !== b.pcRank) return a.pcRank - b.pcRank;
@@ -758,6 +758,10 @@ function renderResults() {
     if (qa !== qb) return qa.localeCompare(qb);
     return (a.declasse ? 1 : 0) - (b.declasse ? 1 : 0);
   });
+}
+
+function renderResults() {
+  const sorted = getSortedRecords();
 
   resultsBody.innerHTML = '';
 
@@ -783,14 +787,207 @@ function renderResults() {
   resultsTotal.textContent = String(total);
 }
 
-function renderGradeCell(record) {
+// Libellé de grade en texte brut (sans balisage), réutilisé pour la cellule
+// HTML du tableau et pour l'export XLSX.
+function gradeCellText(record) {
   if (record.qualityGrade) {
-    const label = record.declasse ? `${record.qualityGradeLabel} Déclassé` : record.qualityGradeLabel;
-    const cls = record.declasse ? 'grade-badge' : 'grade-plain';
-    return `<span class="${cls}">${label}</span>`;
+    return record.declasse ? `${record.qualityGradeLabel} Déclassé` : record.qualityGradeLabel;
   }
-  if (record.declasse) return '<span class="grade-badge">Déclassé</span>';
-  return '';
+  return record.declasse ? 'Déclassé' : '';
+}
+
+function renderGradeCell(record) {
+  const text = gradeCellText(record);
+  if (!text) return '';
+  const cls = record.declasse ? 'grade-badge' : 'grade-plain';
+  return `<span class="${cls}">${text}</span>`;
+}
+
+/* ---------- Export XLSX ----------
+   Génère un classeur .xlsx minimal (OOXML) directement en JS, sans
+   dépendance externe : un ZIP non compressé ("store") contenant les
+   parties XML requises, avec chaînes en inlineStr (pas de sharedStrings).
+*/
+
+function crc32(bytes) {
+  if (!crc32.table) {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      table[n] = c >>> 0;
+    }
+    crc32.table = table;
+  }
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) {
+    crc = crc32.table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function u16(n) { return [n & 0xFF, (n >> 8) & 0xFF]; }
+function u32(n) { return [n & 0xFF, (n >> 8) & 0xFF, (n >> 16) & 0xFF, (n >>> 24) & 0xFF]; }
+
+function buildZip(files) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const encoder = new TextEncoder();
+
+  for (const file of files) {
+    const nameBytes = encoder.encode(file.name);
+    const data = file.data;
+    const crc = crc32(data);
+
+    const localHeader = new Uint8Array([
+      ...u32(0x04034b50), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0),
+      ...u32(crc), ...u32(data.length), ...u32(data.length),
+      ...u16(nameBytes.length), ...u16(0), ...nameBytes,
+    ]);
+    localParts.push(localHeader, data);
+
+    const centralHeader = new Uint8Array([
+      ...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0),
+      ...u32(crc), ...u32(data.length), ...u32(data.length),
+      ...u16(nameBytes.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0),
+      ...u32(offset), ...nameBytes,
+    ]);
+    centralParts.push(centralHeader);
+
+    offset += localHeader.length + data.length;
+  }
+
+  const centralDirStart = offset;
+  const centralDirSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+
+  const eocd = new Uint8Array([
+    ...u32(0x06054b50), ...u16(0), ...u16(0),
+    ...u16(files.length), ...u16(files.length),
+    ...u32(centralDirSize), ...u32(centralDirStart), ...u16(0),
+  ]);
+
+  return new Blob([...localParts, ...centralParts, eocd], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+}
+
+function xmlEscape(str) {
+  return String(str).replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
+  }[ch]));
+}
+
+function colLetter(index) {
+  let n = index + 1;
+  let s = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+function buildSheetXml(rows) {
+  let rowsXml = '';
+  rows.forEach((row, rIdx) => {
+    const r = rIdx + 1;
+    let cellsXml = '';
+    row.forEach((cell, cIdx) => {
+      const ref = `${colLetter(cIdx)}${r}`;
+      if (cell.type === 'n') {
+        cellsXml += `<c r="${ref}"><v>${cell.value}</v></c>`;
+      } else {
+        cellsXml += `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEscape(cell.value)}</t></is></c>`;
+      }
+    });
+    rowsXml += `<row r="${r}">${cellsXml}</row>`;
+  });
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rowsXml}</sheetData></worksheet>`;
+}
+
+function exportResultsXlsx() {
+  if (state.records.length === 0) {
+    showToast('Aucune donnée à exporter');
+    return;
+  }
+
+  const rows = [[
+    { type: 's', value: 'Lg' },
+    { type: 's', value: 'Ep (mm)' },
+    { type: 's', value: 'Pièces/Couche' },
+    { type: 's', value: 'Grade' },
+    { type: 's', value: 'Nb' },
+  ]];
+  for (const record of getSortedRecords()) {
+    rows.push([
+      { type: 's', value: formatLongueur(record.lg) },
+      { type: 'n', value: record.ep },
+      { type: 's', value: record.pcLabel },
+      { type: 's', value: gradeCellText(record) },
+      { type: 'n', value: record.nb },
+    ]);
+  }
+
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`;
+
+  const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`;
+
+  const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Resultats" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>`;
+
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>
+  <fills count="1"><fill><patternFill patternType="none"/></fill></fills>
+  <borders count="1"><border/></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+
+  const sheet = buildSheetXml(rows);
+
+  const encoder = new TextEncoder();
+  const files = [
+    { name: '[Content_Types].xml', data: encoder.encode(contentTypes) },
+    { name: '_rels/.rels', data: encoder.encode(rootRels) },
+    { name: 'xl/workbook.xml', data: encoder.encode(workbook) },
+    { name: 'xl/_rels/workbook.xml.rels', data: encoder.encode(workbookRels) },
+    { name: 'xl/styles.xml', data: encoder.encode(styles) },
+    { name: 'xl/worksheets/sheet1.xml', data: encoder.encode(sheet) },
+  ];
+
+  const blob = buildZip(files);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'stock-planches.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /* ---------- Réinitialisation ---------- */
@@ -813,6 +1010,7 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
 
 /* ---------- Liaisons navigation ---------- */
 
+document.getElementById('btn-export-xlsx').addEventListener('click', exportResultsXlsx);
 document.getElementById('btn-go-results').addEventListener('click', goToResultats);
 document.getElementById('btn-back-to-longueur-from-epaisseur').addEventListener('click', goToLongueur);
 document.getElementById('btn-back-to-epaisseur').addEventListener('click', goToEpaisseur);
