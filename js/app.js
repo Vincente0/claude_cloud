@@ -65,15 +65,16 @@ const EPAISSEUR_SINGLE_VALUES = [18, 27, 38, 50];
 const EPAISSEUR_DUAL_LABEL = '63/75';
 
 // "5." (avec un point) est un libellé distinct de "5", demandé tel quel —
-// ce n'est pas 5,5. Le rang sert uniquement au tri croissant et place "5."
-// juste après "5" puisque les deux représentent la même quantité.
+// ce n'est pas 5,5. Le rang sert au tri du tableau Résultats (croissant) ;
+// l'ordre ci-dessous (décroissant) ne sert qu'à l'affichage des boutons de
+// la page pc, du plus grand au plus petit.
 const PIECES_OPTIONS = [
-  { key: '5', label: '5', rank: 5 },
-  { key: '5.', label: '5.', rank: 5.01 },
-  { key: '6', label: '6', rank: 6 },
-  { key: '7', label: '7', rank: 7 },
-  { key: '10', label: '10', rank: 10 },
   { key: '11', label: '11', rank: 11 },
+  { key: '10', label: '10', rank: 10 },
+  { key: '7', label: '7', rank: 7 },
+  { key: '6', label: '6', rank: 6 },
+  { key: '5.', label: '5.', rank: 5.01 },
+  { key: '5', label: '5', rank: 5 },
 ];
 
 // Affichage alternatif des boutons pièces/couche (bouton en haut à droite
