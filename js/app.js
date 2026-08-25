@@ -792,8 +792,15 @@ function renderHistory() {
   // plus récent apparaisse tout en bas, comme un journal qui s'allonge.
   historyPanel.innerHTML = [...state.history]
     .reverse()
-    .map((h) => `<p class="history-line">${formatLongueur(h.lg)} ${formatNumberFR(h.ep)} - ${h.pcLabel}${gradeSuffixText(h)}</p>`)
+    .map((h) => `<p class="history-line">${formatLongueur(h.lg)} - ${formatNumberFR(h.ep)}x${historyPieceValue(h)}${gradeSuffixText(h)}</p>`)
     .join('');
+}
+
+// Valeur pièces/couche affichée dans l'historique : la valeur convertie
+// (ex. "5." → "225") quand elle existe, sinon le libellé brut tel quel
+// (Chevrons "14", "63." de l'épaisseur 38, saisies "Autre", grades 27...).
+function historyPieceValue(h) {
+  return PIECES_DISPLAY_CONVERSION[h.pcKey] ?? h.pcLabel;
 }
 
 // Libellé de grade affiché en complément (historique, toast, résultats) :
