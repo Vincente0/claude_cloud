@@ -62,7 +62,6 @@ const EPAISSEUR_SINGLE_VALUES = [18, 27, 38, 50];
 
 // Bouton combiné : sur la page pièces/couche, permet de choisir entre
 // 63 et 75 sans revenir sur la page épaisseur (voir buildPiecesGridDual).
-const EPAISSEUR_DUAL_VALUES = [63, 75];
 const EPAISSEUR_DUAL_LABEL = '63/75';
 
 // "5." (avec un point) est un libellé distinct de "5", demandé tel quel —
@@ -95,6 +94,18 @@ function pieceButtonLabel(option) {
   }
   return option.label;
 }
+
+// Page pc 63/75 : 6 boutons fixes (valeurs converties), l'épaisseur et le
+// grade se décident au relâchement du geste à 4 directions (voir
+// bindSwipeGesture). Ordre = disposition affichée (2 colonnes x 3 lignes).
+const PIECES_DUAL_OPTIONS = [
+  { key: '11', label: '11', rank: 11, converted: '100' },
+  { key: '10', label: '10', rank: 10, converted: '110' },
+  { key: '7', label: '7', rank: 7, converted: '150' },
+  { key: '6', label: '6', rank: 6, converted: '175' },
+  { key: '5', label: '5', rank: 5, converted: '200' },
+  { key: '5.', label: '5.', rank: 5.01, converted: '225' },
+];
 
 // Chevrons : raccourci depuis la page longueur. Chaque section fixe une
 // épaisseur et un pièces/couche de 14 ; seule la longueur reste à choisir,
@@ -177,6 +188,9 @@ const modalHint = document.getElementById('modal-hint');
 const modalInput = document.getElementById('modal-input');
 const modalConfirm = document.getElementById('modal-confirm');
 const modalCancel = document.getElementById('modal-cancel');
+const modalEpToggle = document.getElementById('modal-ep-toggle');
+const modalEp63Btn = document.getElementById('modal-ep-63');
+const modalEp75Btn = document.getElementById('modal-ep-75');
 
 const toastEl = document.getElementById('toast');
 
@@ -221,6 +235,9 @@ function goToPieces() {
   } else {
     currentLongueurEpaisseurLabel.textContent = '—';
   }
+  // Sur la page 63/75, l'épaisseur se décide par geste sur chaque bouton :
+  // le bouton d'affichage pièces/couche (conversion) n'a plus d'effet ici.
+  btnTogglePiecesDisplay.hidden = state.epaisseurDual;
   buildPiecesGrid();
   showPage('pieces');
 }
@@ -261,11 +278,27 @@ function showToast(message) {
 /* ---------- Modale "Autre" ---------- */
 
 let modalResolve = null;
+let modalReturnsEp = false;
+let modalSelectedEp = 63;
 
-function openModal({ title, hint }) {
+function setModalEp(value) {
+  modalSelectedEp = value;
+  modalEp63Btn.setAttribute('aria-pressed', String(value === 63));
+  modalEp75Btn.setAttribute('aria-pressed', String(value === 75));
+}
+modalEp63Btn.addEventListener('click', () => setModalEp(63));
+modalEp75Btn.addEventListener('click', () => setModalEp(75));
+
+// showEpaisseurToggle : page pc 63/75 (bouton Autre unique) — la modale
+// propose en plus un choix d'épaisseur (63 par défaut) et resout avec
+// { value, ep } au lieu de la seule valeur numérique.
+function openModal({ title, hint, showEpaisseurToggle = false, defaultEp = 63 }) {
   modalTitle.textContent = title;
   modalHint.textContent = hint;
   modalInput.value = '';
+  modalReturnsEp = showEpaisseurToggle;
+  modalEpToggle.hidden = !showEpaisseurToggle;
+  if (showEpaisseurToggle) setModalEp(defaultEp);
   modalOverlay.hidden = false;
   setTimeout(() => modalInput.focus(), 50);
   return new Promise((resolve) => { modalResolve = resolve; });
@@ -289,7 +322,7 @@ modalConfirm.addEventListener('click', () => {
     modalInput.focus();
     return;
   }
-  closeModal(value);
+  closeModal(modalReturnsEp ? { value, ep: modalSelectedEp } : value);
 });
 modalInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') modalConfirm.click();
@@ -378,6 +411,98 @@ function bindRecordGesture(el, onRecord) {
     const grade = armed ? 'declasse' : 'normal';
     cleanup();
     onRecord(grade);
+  });
+
+  el.addEventListener('pointercancel', (e) => {
+    if (pointerId === null || e.pointerId !== pointerId) return;
+    cleanup();
+  });
+}
+
+/* ---------- Geste à 4 directions (page pc 63/75) : le relâchement
+   détermine à la fois l'épaisseur (haut = 75, bas = 63) et le grade
+   (vertical = normal, diagonale vers la droite = déclassé). Un tap ou un
+   glissement hors de ces 4 directions n'enregistre rien. */
+
+const SWIPE_MIN_DISTANCE = 50;
+const SWIPE_ANGLE_TOLERANCE = 18; // degrés de tolérance autour de chaque direction
+const SWIPE_VISUAL_CAP = 22;
+
+// Angles en coordonnées écran (atan2(dy, dx), y vers le bas) : haut = -90°,
+// bas = 90°, diagonale haut-droite = -45°, diagonale bas-droite = 45°.
+const SWIPE_DIRECTIONS = [
+  { angle: -90, ep: 75, declasse: false, label: '75 · Normal' },
+  { angle: 90, ep: 63, declasse: false, label: '63 · Normal' },
+  { angle: -45, ep: 75, declasse: true, label: '75 · Déclassé' },
+  { angle: 45, ep: 63, declasse: true, label: '63 · Déclassé' },
+];
+
+function angleDiff(a, b) {
+  const d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+function resolveSwipeDirection(dx, dy) {
+  const distance = Math.hypot(dx, dy);
+  if (distance < SWIPE_MIN_DISTANCE) return null;
+  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  let best = null;
+  let bestDiff = Infinity;
+  for (const dir of SWIPE_DIRECTIONS) {
+    const diff = angleDiff(angle, dir.angle);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = dir;
+    }
+  }
+  return bestDiff <= SWIPE_ANGLE_TOLERANCE ? best : null;
+}
+
+function bindSwipeGesture(el, onSwipe) {
+  let pointerId = null;
+  let startX = 0;
+  let startY = 0;
+
+  function cleanup() {
+    el.classList.remove('tile-pressing', 'tile-swipe-armed');
+    el.removeAttribute('data-armed-label');
+    el.style.transform = '';
+    pointerId = null;
+  }
+
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pointerId = e.pointerId;
+    startX = e.clientX;
+    startY = e.clientY;
+    el.classList.add('tile-pressing');
+    try { el.setPointerCapture(pointerId); } catch (err) { /* ignore */ }
+  });
+
+  el.addEventListener('pointermove', (e) => {
+    if (pointerId === null || e.pointerId !== pointerId) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const dir = resolveSwipeDirection(dx, dy);
+    if (dir) {
+      el.classList.add('tile-swipe-armed');
+      el.dataset.armedLabel = dir.label;
+    } else {
+      el.classList.remove('tile-swipe-armed');
+      el.removeAttribute('data-armed-label');
+    }
+    const distance = Math.hypot(dx, dy);
+    const scale = distance > 0 ? Math.min(distance, SWIPE_VISUAL_CAP) / distance : 0;
+    el.style.transform = `translate(${dx * scale}px, ${dy * scale}px)`;
+  });
+
+  el.addEventListener('pointerup', (e) => {
+    if (pointerId === null || e.pointerId !== pointerId) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const dir = resolveSwipeDirection(dx, dy);
+    cleanup();
+    if (dir) onSwipe(dir);
   });
 
   el.addEventListener('pointercancel', (e) => {
@@ -527,8 +652,7 @@ function selectEpaisseurDual() {
 
 function buildPiecesGrid() {
   gridPieces.innerHTML = '';
-  gridPieces.classList.toggle('grid-4col', state.epaisseurDual);
-  gridPieces.classList.toggle('grid-2col', !state.epaisseurDual);
+  gridPieces.className = 'grid grid-2col';
 
   if (state.epaisseurDual) {
     buildPiecesGridDual();
@@ -537,7 +661,7 @@ function buildPiecesGrid() {
   }
 
   historyPanel = document.createElement('div');
-  historyPanel.className = state.epaisseurDual ? 'history-panel tile-full' : 'history-panel';
+  historyPanel.className = 'history-panel';
   historyPanel.setAttribute('aria-live', 'polite');
   gridPieces.appendChild(historyPanel);
   renderHistory();
@@ -590,57 +714,40 @@ function buildPiecesGridSingle() {
   }
 }
 
-// Grille 4 colonnes : les 2 premières colonnes pour l'épaisseur 63,
-// les 2 dernières pour l'épaisseur 75 — bascule sans repasser par la
-// page épaisseur.
+// Page pc 63/75 : 6 boutons fixes (valeurs converties). Le relâchement du
+// geste à 4 directions (voir bindSwipeGesture) fixe à la fois l'épaisseur
+// et le grade — aucune information supplémentaire n'est affichée sur les
+// boutons eux-mêmes tant que le geste n'est pas en cours.
 function buildPiecesGridDual() {
-  for (const ep of EPAISSEUR_DUAL_VALUES) {
-    const label = document.createElement('div');
-    label.className = 'dual-ep-label';
-    label.textContent = `${formatNumberFR(ep)} mm`;
-    gridPieces.appendChild(label);
+  for (const option of PIECES_DUAL_OPTIONS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tile';
+    btn.textContent = option.converted;
+    bindSwipeGesture(btn, (direction) => recordPiecesDualSwipe(option, direction));
+    gridPieces.appendChild(btn);
   }
 
-  const pairs = [
-    [PIECES_OPTIONS[0], PIECES_OPTIONS[1]],
-    [PIECES_OPTIONS[2], PIECES_OPTIONS[3]],
-    [PIECES_OPTIONS[4], PIECES_OPTIONS[5]],
-  ];
-
-  for (const [left, right] of pairs) {
-    for (const option of [left, right]) {
-      appendPiecesTile(option, EPAISSEUR_DUAL_VALUES[0]);
-    }
-    for (const option of [left, right]) {
-      appendPiecesTile(option, EPAISSEUR_DUAL_VALUES[1]);
-    }
-  }
-
-  for (const ep of EPAISSEUR_DUAL_VALUES) {
-    const btnAutre = document.createElement('button');
-    btnAutre.type = 'button';
-    btnAutre.className = 'tile tile-autre tile-half-span';
-    setTileEpLabel(btnAutre, ep, 'Autre');
-    bindRecordGesture(btnAutre, async (grade) => {
-      const value = await openModal({
-        title: `Pièces / couche personnalisé — ${formatNumberFR(ep)} mm`,
-        hint: 'Saisissez le nombre de pièces par couche',
-      });
-      if (value === null) return;
-      const label = formatNumberFR(value);
-      recordCombination({ key: label, label, rank: value }, ep, undefined, grade);
+  const btnAutre = document.createElement('button');
+  btnAutre.type = 'button';
+  btnAutre.className = 'tile tile-autre';
+  btnAutre.textContent = 'Autre';
+  btnAutre.addEventListener('click', async () => {
+    const result = await openModal({
+      title: 'Pièces / couche personnalisé',
+      hint: 'Saisissez le nombre de pièces par couche, puis choisissez l\'épaisseur',
+      showEpaisseurToggle: true,
+      defaultEp: 63,
     });
-    gridPieces.appendChild(btnAutre);
-  }
+    if (result === null) return;
+    const label = formatNumberFR(result.value);
+    recordCombination({ key: label, label, rank: result.value }, result.ep, undefined, 'normal');
+  });
+  gridPieces.appendChild(btnAutre);
 }
 
-function appendPiecesTile(option, ep) {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'tile';
-  setTileEpLabel(btn, ep, pieceButtonLabel(option));
-  bindRecordGesture(btn, (grade) => recordCombination(option, ep, undefined, grade));
-  gridPieces.appendChild(btn);
+function recordPiecesDualSwipe(option, direction) {
+  recordCombination(option, direction.ep, undefined, direction.declasse ? 'declasse' : 'normal');
 }
 
 // 3 colonnes qualité (chacune fixant un pièces/couche), 3 lignes de grade

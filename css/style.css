@@ -107,6 +107,10 @@ body {
   opacity: 0.35;
 }
 
+.btn-back[hidden], .btn-reset[hidden] {
+  display: none;
+}
+
 .btn-back:disabled:active, .btn-reset:disabled:active {
   transform: none;
 }
@@ -170,21 +174,6 @@ body {
   font-size: 9.5px;
   line-height: 1.25;
   padding: 4px 2px;
-}
-
-.grid-4col {
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: auto repeat(4, 1fr) minmax(150px, auto);
-  gap: 8px;
-}
-
-.grid-4col .tile {
-  font-size: 19px;
-  border-radius: 14px;
-}
-
-.grid-4col .tile-autre {
-  font-size: 13px;
 }
 
 .dual-ep-label {
@@ -270,6 +259,27 @@ body {
   text-align: center;
 }
 
+/* Geste à 4 directions (page pièces/couche 63/75) : haut/bas = épaisseur,
+   diagonale droite = Déclassé. Voir bindSwipeGesture dans app.js. */
+.tile-swipe-armed {
+  background: var(--color-amber-dark) !important;
+  color: #fff !important;
+  border-color: var(--color-amber-dark) !important;
+}
+
+.tile-swipe-armed::after {
+  content: attr(data-armed-label);
+  position: absolute;
+  bottom: 6px;
+  left: 0;
+  right: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
 .tile-autre {
   color: var(--color-accent-dark);
   border: 1.5px dashed var(--color-accent);
@@ -283,10 +293,6 @@ body {
 
 .tile-full {
   grid-column: 1 / -1;
-}
-
-.tile-half-span {
-  grid-column: span 2;
 }
 
 .history-panel {
@@ -385,6 +391,31 @@ body {
 }
 
 .modal-input:focus { outline: 2px solid var(--color-accent); }
+
+.modal-ep-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.modal-ep-toggle[hidden] { display: none; }
+
+.modal-ep-btn {
+  flex: 1;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 700;
+  padding: 12px;
+}
+
+.modal-ep-btn[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
 
 .modal-actions {
   display: flex;
