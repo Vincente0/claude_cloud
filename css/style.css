@@ -472,6 +472,8 @@ body {
 
 .toast[hidden] { display: none; }
 
+.toast-declasse { background: var(--color-declasse-gray); }
+
 /* RESULTS TABLE */
 .results-wrap {
   flex: 1 1 auto;

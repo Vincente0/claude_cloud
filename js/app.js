@@ -268,8 +268,9 @@ function goToResultats() {
 /* ---------- Toast ---------- */
 
 let toastTimer = null;
-function showToast(message) {
+function showToast(message, declasse = false) {
   toastEl.textContent = message;
+  toastEl.classList.toggle('toast-declasse', declasse);
   toastEl.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { toastEl.hidden = true; }, 1100);
@@ -834,7 +835,7 @@ function recordCombination(pieces, epOverride, lgOverride, grade, qualityGrade) 
   saveState();
   renderHistory();
   const nb = existing ? existing.nb : 1;
-  showToast(`${formatLongueur(lg)} · ${formatNumberFR(ep)}mm · ${pieces.label} pièces/couche — Nb : ${nb}${gradeSuffixText(historyEntry)}`);
+  showToast(`${formatLongueur(lg)} · ${formatNumberFR(ep)}mm · ${pieces.label} pièces/couche — Nb : ${nb}${gradeSuffixText(historyEntry)}`, declasse);
 }
 
 function undoLastEntry() {
@@ -851,7 +852,7 @@ function undoLastEntry() {
   }
   saveState();
   renderHistory();
-  showToast(`Annulé : ${formatLongueur(last.lg)} · ${formatNumberFR(last.ep)}mm · ${last.pcLabel} pièces/couche${gradeSuffixText(last)}`);
+  showToast(`Annulé : ${formatLongueur(last.lg)} · ${formatNumberFR(last.ep)}mm · ${last.pcLabel} pièces/couche${gradeSuffixText(last)}`, last.declasse);
 }
 
 /* ---------- Résultats ---------- */
