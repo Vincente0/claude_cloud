@@ -368,9 +368,9 @@ confirmOkBtn.addEventListener('click', () => closeConfirm(true));
    Le grade se décide au relâchement, selon la position du doigt à ce
    moment (l'utilisateur peut remonter pour annuler avant de lâcher). */
 
-const DECLASSE_DRAG_THRESHOLD = 195;
-const DECLASSE_DRAG_RELEASE = 117; // hystérésis pour désarmer en remontant
-const DECLASSE_VISUAL_CAP = 29;
+const DECLASSE_DRAG_THRESHOLD = 150;
+const DECLASSE_DRAG_RELEASE = 90; // hystérésis pour désarmer en remontant
+const DECLASSE_VISUAL_CAP = 22;
 
 function bindRecordGesture(el, onRecord) {
   let pointerId = null;
@@ -426,9 +426,9 @@ function bindRecordGesture(el, onRecord) {
    (vertical = normal, diagonale vers la droite = déclassé). Un tap ou un
    glissement hors de ces 4 directions n'enregistre rien. */
 
-const SWIPE_MIN_DISTANCE = 65;
+const SWIPE_MIN_DISTANCE = 50;
 const SWIPE_ANGLE_TOLERANCE = 18; // degrés de tolérance autour de chaque direction
-const SWIPE_VISUAL_CAP = 29;
+const SWIPE_VISUAL_CAP = 22;
 
 // Angles en coordonnées écran (atan2(dy, dx), y vers le bas) : haut = -90°,
 // bas = 90°, diagonale haut-droite = -45°, diagonale bas-droite = 45°.
