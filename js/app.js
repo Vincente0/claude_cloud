@@ -73,8 +73,8 @@ const PIECES_OPTIONS = [
   { key: '10', label: '10', rank: 10 },
   { key: '7', label: '7', rank: 7 },
   { key: '6', label: '6', rank: 6 },
-  { key: '5.', label: '5.', rank: 5.01 },
   { key: '5', label: '5', rank: 5 },
+  { key: '5.', label: '5.', rank: 5.01 },
 ];
 
 // Affichage alternatif des boutons pièces/couche (bouton en haut à droite
