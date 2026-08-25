@@ -110,6 +110,7 @@ const CHEVRON_PIECES = { key: '14', label: '14', rank: 14 };
 // (3 / 3A / 3B) par colonne ; le choix enregistre directement.
 const GRADE27_EPAISSEUR = 27;
 const GRADE27_QUALITIES = [
+  { key: '150', label: '150 qual', pieces: { key: '7', label: '7', rank: 7 } },
   { key: '200', label: '200 qual', pieces: { key: '5', label: '5', rank: 5 } },
   { key: '250', label: '250 qual', pieces: { key: '4', label: '4', rank: 4 } },
   { key: '305', label: '305 qual', pieces: { key: '3', label: '3', rank: 3 } },
@@ -119,6 +120,11 @@ const GRADE27_OPTIONS = [
   { key: '3A', label: '3A' },
   { key: '3B', label: '3B' },
 ];
+
+// Page pc, épaisseur 38 uniquement : bouton supplémentaire "63." — un
+// libellé distinct (comme "5.") qui correspond en réalité à 16 pièces/couche.
+const EP38_EPAISSEUR = 38;
+const EP38_EXTRA_PIECES = { key: '63.', label: '63.', rank: 16 };
 
 // Préfixe épaisseur en gris clair sur les boutons d'enregistrement
 // (ex. "63 x 5."), pour rappeler l'épaisseur déjà fixée sans revenir en
@@ -571,6 +577,16 @@ function buildPiecesGridSingle() {
     btnQual.textContent = '27qual';
     btnQual.addEventListener('click', openGrade27);
     gridPieces.appendChild(btnQual);
+  }
+
+  // Spécifique à l'épaisseur 38 : bouton "63." (16 pièces/couche).
+  if (state.currentEpaisseur === EP38_EPAISSEUR) {
+    const btnEp38 = document.createElement('button');
+    btnEp38.type = 'button';
+    btnEp38.className = 'tile';
+    setTileEpLabel(btnEp38, state.currentEpaisseur, EP38_EXTRA_PIECES.label);
+    bindRecordGesture(btnEp38, (grade) => recordCombination(EP38_EXTRA_PIECES, undefined, undefined, grade));
+    gridPieces.appendChild(btnEp38);
   }
 }
 

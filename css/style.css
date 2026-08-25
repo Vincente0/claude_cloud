@@ -156,18 +156,18 @@ body {
 }
 
 .grid-3col {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   grid-template-rows: auto repeat(3, 1fr);
-  gap: 8px;
+  gap: 6px;
 }
 
 .grid-3col .tile {
-  font-size: 18px;
+  font-size: 15px;
 }
 
 .grid-3col .dual-ep-label {
   grid-column: span 1;
-  font-size: 10.5px;
+  font-size: 9.5px;
   line-height: 1.25;
   padding: 4px 2px;
 }
