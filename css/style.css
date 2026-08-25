@@ -2,6 +2,7 @@
   --color-bg: #F4F1EA;
   --color-ink: #1C2420;
   --color-ink-soft: #5B6660;
+  --color-ink-lighter: #9CA39D;
   --color-accent: #1F6F54;
   --color-accent-dark: #16523E;
   --color-card: #FFFFFF;
@@ -156,7 +157,19 @@ body {
 
 .grid-3col {
   grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: 1fr;
+  grid-template-rows: auto repeat(3, 1fr);
+  gap: 8px;
+}
+
+.grid-3col .tile {
+  font-size: 18px;
+}
+
+.grid-3col .dual-ep-label {
+  grid-column: span 1;
+  font-size: 10.5px;
+  line-height: 1.25;
+  padding: 4px 2px;
 }
 
 .grid-4col {
@@ -210,6 +223,20 @@ body {
   background: var(--color-accent);
   color: #fff;
   border-color: var(--color-accent);
+}
+
+/* Préfixe épaisseur (ex. "63 x 5.") affiché sur les boutons d'enregistrement :
+   le préfixe reste gris clair, la valeur pièces/couche garde sa couleur
+   habituelle (héritée de .tile / .tile-autre). */
+.tile-ep-prefix {
+  color: var(--color-ink-lighter);
+  margin-right: 0.22em;
+}
+
+.tile:active .tile-ep-prefix,
+.tile-pressing .tile-ep-prefix,
+.tile-armed .tile-ep-prefix {
+  color: #fff;
 }
 
 /* Geste "appui + glissement vers le bas" pour enregistrer en Déclassé

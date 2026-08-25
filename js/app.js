@@ -8,7 +8,7 @@ const HISTORY_LIMIT = 6;
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', chevronEpaisseur: null, grade27Quality: null };
+    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', chevronEpaisseur: null, grade27Open: false };
     const parsed = JSON.parse(raw);
     return {
       records: Array.isArray(parsed.records) ? parsed.records : [],
@@ -18,10 +18,10 @@ function loadState() {
       epaisseurDual: parsed.epaisseurDual === true,
       pieceDisplayMode: parsed.pieceDisplayMode === 'converted' ? 'converted' : 'pieces',
       chevronEpaisseur: parsed.chevronEpaisseur ?? null,
-      grade27Quality: parsed.grade27Quality ?? null,
+      grade27Open: parsed.grade27Open === true,
     };
   } catch (e) {
-    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', chevronEpaisseur: null, grade27Quality: null };
+    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', chevronEpaisseur: null, grade27Open: false };
   }
 }
 
@@ -34,7 +34,7 @@ function saveState() {
     epaisseurDual: state.epaisseurDual,
     pieceDisplayMode: state.pieceDisplayMode,
     chevronEpaisseur: state.chevronEpaisseur,
-    grade27Quality: state.grade27Quality,
+    grade27Open: state.grade27Open,
   }));
 }
 
@@ -105,18 +105,35 @@ const CHEVRON_SECTIONS = [
 ];
 const CHEVRON_PIECES = { key: '14', label: '14', rank: 14 };
 
-// Page pc, épaisseur 27 uniquement : "Autre" se double de deux raccourcis
-// qualité, chacun avec un pièces/couche fixe. Le choix ouvre pagegrade27
-// pour sélectionner le grade (3 / 3A / 3B), qui enregistre directement.
+// Page pc, épaisseur 27 uniquement : bouton "27qual" ouvrant pagegrade27,
+// qui fixe le pièces/couche selon 3 colonnes qualité et propose 3 grades
+// (3 / 3A / 3B) par colonne ; le choix enregistre directement.
+const GRADE27_EPAISSEUR = 27;
 const GRADE27_QUALITIES = [
   { key: '200', label: '200 qual', pieces: { key: '5', label: '5', rank: 5 } },
   { key: '250', label: '250 qual', pieces: { key: '4', label: '4', rank: 4 } },
+  { key: '305', label: '305 qual', pieces: { key: '3', label: '3', rank: 3 } },
 ];
 const GRADE27_OPTIONS = [
   { key: '3', label: '3' },
   { key: '3A', label: '3A' },
   { key: '3B', label: '3B' },
 ];
+
+// Préfixe épaisseur en gris clair sur les boutons d'enregistrement
+// (ex. "63 x 5."), pour rappeler l'épaisseur déjà fixée sans revenir en
+// arrière. La valeur pièces/couche (ou longueur, ou grade) garde sa
+// couleur habituelle.
+function setTileEpLabel(btn, ep, label) {
+  btn.textContent = '';
+  const prefix = document.createElement('span');
+  prefix.className = 'tile-ep-prefix';
+  prefix.textContent = `${formatNumberFR(ep)} x`;
+  const value = document.createElement('span');
+  value.textContent = label;
+  btn.appendChild(prefix);
+  btn.appendChild(value);
+}
 
 /* ---------- Références DOM ---------- */
 
@@ -177,6 +194,7 @@ function goToLgChevrons() {
   lgChevronsMain.textContent = state.chevronEpaisseur !== null
     ? `${formatNumberFR(state.chevronEpaisseur)} mm`
     : '—';
+  buildLgChevronsGrid();
   showPage('lgChevrons');
 }
 
@@ -202,21 +220,21 @@ function goToPieces() {
 }
 
 function goToGrade27() {
-  const quality = GRADE27_QUALITIES.find((q) => q.key === state.grade27Quality);
-  if (quality && state.currentLongueur !== null) {
-    grade27Sub.textContent = `27mm · ${quality.label} · ${quality.pieces.label} pièces/couche`;
-    grade27Main.textContent = formatLongueur(state.currentLongueur);
-  } else {
-    grade27Sub.textContent = '—';
-    grade27Main.textContent = '—';
-  }
+  grade27Sub.textContent = state.currentLongueur !== null ? '27mm' : '—';
+  grade27Main.textContent = state.currentLongueur !== null ? formatLongueur(state.currentLongueur) : '—';
   showPage('grade27');
 }
 
-function selectGrade27Quality(qualityKey) {
-  state.grade27Quality = qualityKey;
+function openGrade27() {
+  state.grade27Open = true;
   saveState();
   goToGrade27();
+}
+
+function backFromGrade27() {
+  state.grade27Open = false;
+  saveState();
+  goToPieces();
 }
 
 function goToResultats() {
@@ -429,7 +447,7 @@ function buildLgChevronsGrid() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'tile';
-    btn.textContent = formatLongueur(value);
+    setTileEpLabel(btn, state.chevronEpaisseur, formatLongueur(value));
     bindRecordGesture(btn, (grade) => recordChevronCombination(value, grade));
     gridLgChevrons.appendChild(btn);
   }
@@ -437,7 +455,7 @@ function buildLgChevronsGrid() {
   const btnAutre = document.createElement('button');
   btnAutre.type = 'button';
   btnAutre.className = 'tile tile-autre';
-  btnAutre.textContent = 'Autre';
+  setTileEpLabel(btnAutre, state.chevronEpaisseur, 'Autre');
   bindRecordGesture(btnAutre, async (grade) => {
     const value = await openModal({
       title: 'Longueur personnalisée',
@@ -524,7 +542,7 @@ function buildPiecesGridSingle() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'tile';
-    btn.textContent = pieceButtonLabel(option);
+    setTileEpLabel(btn, state.currentEpaisseur, pieceButtonLabel(option));
     bindRecordGesture(btn, (grade) => recordCombination(option, undefined, undefined, grade));
     gridPieces.appendChild(btn);
   }
@@ -532,7 +550,7 @@ function buildPiecesGridSingle() {
   const btnAutre = document.createElement('button');
   btnAutre.type = 'button';
   btnAutre.className = 'tile tile-autre';
-  btnAutre.textContent = 'Autre';
+  setTileEpLabel(btnAutre, state.currentEpaisseur, 'Autre');
   bindRecordGesture(btnAutre, async (grade) => {
     const value = await openModal({
       title: 'Pièces / couche personnalisé',
@@ -544,17 +562,15 @@ function buildPiecesGridSingle() {
   });
   gridPieces.appendChild(btnAutre);
 
-  // Spécifique à l'épaisseur 27 : deux raccourcis qualité ouvrant la
-  // sélection de grade (voir buildGrade27Grid), en plus de "Autre".
-  if (state.currentEpaisseur === 27) {
-    for (const quality of GRADE27_QUALITIES) {
-      const btnQuality = document.createElement('button');
-      btnQuality.type = 'button';
-      btnQuality.className = 'tile';
-      btnQuality.textContent = quality.label;
-      btnQuality.addEventListener('click', () => selectGrade27Quality(quality.key));
-      gridPieces.appendChild(btnQuality);
-    }
+  // Spécifique à l'épaisseur 27 : raccourci ouvrant pagegrade27 (voir
+  // buildGrade27Grid), en plus de "Autre".
+  if (state.currentEpaisseur === GRADE27_EPAISSEUR) {
+    const btnQual = document.createElement('button');
+    btnQual.type = 'button';
+    btnQual.className = 'tile';
+    btnQual.textContent = '27qual';
+    btnQual.addEventListener('click', openGrade27);
+    gridPieces.appendChild(btnQual);
   }
 }
 
@@ -588,7 +604,7 @@ function buildPiecesGridDual() {
     const btnAutre = document.createElement('button');
     btnAutre.type = 'button';
     btnAutre.className = 'tile tile-autre tile-half-span';
-    btnAutre.textContent = `Autre ${formatNumberFR(ep)}`;
+    setTileEpLabel(btnAutre, ep, 'Autre');
     bindRecordGesture(btnAutre, async (grade) => {
       const value = await openModal({
         title: `Pièces / couche personnalisé — ${formatNumberFR(ep)} mm`,
@@ -606,27 +622,34 @@ function appendPiecesTile(option, ep) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'tile';
-  btn.textContent = pieceButtonLabel(option);
+  setTileEpLabel(btn, ep, pieceButtonLabel(option));
   bindRecordGesture(btn, (grade) => recordCombination(option, ep, undefined, grade));
   gridPieces.appendChild(btn);
 }
 
+// 3 colonnes qualité (chacune fixant un pièces/couche), 3 lignes de grade
+// (3 / 3A / 3B) : les boutons sont créés grade par grade pour que
+// l'ordre du DOM place chaque colonne sous son en-tête dans la grille.
 function buildGrade27Grid() {
   gridGrade27.innerHTML = '';
-  for (const option of GRADE27_OPTIONS) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'tile';
-    btn.textContent = option.label;
-    bindRecordGesture(btn, (grade) => recordGrade27Combination(option, grade));
-    gridGrade27.appendChild(btn);
-  }
-}
 
-function recordGrade27Combination(gradeOption, declasseGrade) {
-  const quality = GRADE27_QUALITIES.find((q) => q.key === state.grade27Quality);
-  if (!quality) return;
-  recordCombination(quality.pieces, 27, undefined, declasseGrade, gradeOption);
+  for (const quality of GRADE27_QUALITIES) {
+    const label = document.createElement('div');
+    label.className = 'dual-ep-label';
+    label.textContent = `${quality.label} · ${quality.pieces.label} pcs/couche`;
+    gridGrade27.appendChild(label);
+  }
+
+  for (const option of GRADE27_OPTIONS) {
+    for (const quality of GRADE27_QUALITIES) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tile';
+      setTileEpLabel(btn, GRADE27_EPAISSEUR, option.label);
+      bindRecordGesture(btn, (grade) => recordCombination(quality.pieces, GRADE27_EPAISSEUR, undefined, grade, option));
+      gridGrade27.appendChild(btn);
+    }
+  }
 }
 
 /* ---------- Historique des derniers enregistrements ---------- */
@@ -779,7 +802,7 @@ document.getElementById('btn-back-to-longueur-from-epaisseur').addEventListener(
 document.getElementById('btn-back-to-epaisseur').addEventListener('click', goToEpaisseur);
 document.getElementById('btn-back-to-longueur-from-chevron-section').addEventListener('click', goToLongueur);
 document.getElementById('btn-back-to-chevron-section').addEventListener('click', goToChevronSection);
-document.getElementById('btn-back-to-pieces-from-grade27').addEventListener('click', goToPieces);
+document.getElementById('btn-back-to-pieces-from-grade27').addEventListener('click', backFromGrade27);
 btnUndoLast.addEventListener('click', undoLastEntry);
 btnTogglePiecesDisplay.addEventListener('click', () => {
   state.pieceDisplayMode = state.pieceDisplayMode === 'converted' ? 'pieces' : 'converted';
@@ -809,7 +832,7 @@ updateTogglePiecesDisplayButton();
 
 if (state.chevronEpaisseur !== null) {
   goToLgChevrons();
-} else if (state.grade27Quality !== null && state.currentEpaisseur === 27) {
+} else if (state.grade27Open) {
   goToGrade27();
 } else if (state.currentLongueur !== null && (state.currentEpaisseur !== null || state.epaisseurDual)) {
   goToPieces();
