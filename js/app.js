@@ -427,30 +427,33 @@ function bindRecordGesture(el, onRecord) {
    glissement hors de ces 4 directions n'enregistre rien. */
 
 const SWIPE_MIN_DISTANCE = 50;
-const SWIPE_ANGLE_TOLERANCE = 18; // degrés de tolérance autour de chaque direction
 const SWIPE_VISUAL_CAP = 22;
 
-// Angles en coordonnées écran (atan2(dy, dx), y vers le bas) : haut = -90°,
-// bas = 90°, diagonale haut-droite = -45°, diagonale bas-droite = 45°.
-// Les zones "Normal" (haut/bas) sont volontairement larges vers la gauche
-// (un glissement haut-gauche valide quand même 75 Normal, bas-gauche valide
-// 63 Normal) ; seul le côté droit reste borné par la zone Déclassé
-// adjacente, pour ne pas empiéter dessus. Un glissement vers la droite
-// (hors des zones Déclassé) reste une direction indéfinie : rien ne
-// s'enregistre.
+// Système d'angles personnalisé pour le geste : gauche = 0°/360°,
+// haut = 90°, droite = 180°, bas = 270°, sens horaire.
+function swipeAngleDeg(dx, dy) {
+  const raw = Math.atan2(-dy, -dx) * (180 / Math.PI);
+  return (raw + 360) % 360;
+}
+
+// Intervalles de validation (dans le système d'angles ci-dessus). Les zones
+// hors intervalle (autour de gauche pur et de droite pur) restent une
+// direction indéfinie : rien ne s'enregistre.
 const SWIPE_DIRECTIONS = [
-  { minAngle: -45 - SWIPE_ANGLE_TOLERANCE, maxAngle: -45 + SWIPE_ANGLE_TOLERANCE, ep: 75, declasse: true, label: '75 · Déclassé' },
-  { minAngle: 45 - SWIPE_ANGLE_TOLERANCE, maxAngle: 45 + SWIPE_ANGLE_TOLERANCE, ep: 63, declasse: true, label: '63 · Déclassé' },
-  { minAngle: -180, maxAngle: -45 - SWIPE_ANGLE_TOLERANCE, ep: 75, declasse: false, label: '75 · Normal' },
-  { minAngle: 45 + SWIPE_ANGLE_TOLERANCE, maxAngle: 180, ep: 63, declasse: false, label: '63 · Normal' },
+  { minAngle: 270, maxAngle: 340, ep: 63, declasse: false, label: '63 · Normal' },
+  { minAngle: 20, maxAngle: 90, ep: 75, declasse: false, label: '75 · Normal' },
+  { minAngle: 100, maxAngle: 170, ep: 75, declasse: true, label: '75 · Déclassé' },
+  { minAngle: 190, maxAngle: 260, ep: 63, declasse: true, label: '63 · Déclassé' },
 ];
+
+const SWIPE_ANGLE_EPSILON = 0.01; // tolérance contre l'imprécision flottante sur les bornes
 
 function resolveSwipeDirection(dx, dy) {
   const distance = Math.hypot(dx, dy);
   if (distance < SWIPE_MIN_DISTANCE) return null;
-  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  const angle = swipeAngleDeg(dx, dy);
   for (const dir of SWIPE_DIRECTIONS) {
-    if (angle >= dir.minAngle && angle <= dir.maxAngle) return dir;
+    if (angle >= dir.minAngle - SWIPE_ANGLE_EPSILON && angle <= dir.maxAngle + SWIPE_ANGLE_EPSILON) return dir;
   }
   return null;
 }
