@@ -658,28 +658,24 @@ function buildPiecesGrid() {
   gridPieces.innerHTML = '';
   gridPieces.className = 'grid grid-2col';
 
+  historyPanel = document.createElement('div');
+  historyPanel.className = 'history-panel';
+  historyPanel.setAttribute('aria-live', 'polite');
+
   if (state.epaisseurDual) {
     buildPiecesGridDual();
   } else {
     buildPiecesGridSingle();
   }
 
-  historyPanel = document.createElement('div');
-  historyPanel.className = 'history-panel';
-  historyPanel.setAttribute('aria-live', 'polite');
-  gridPieces.appendChild(historyPanel);
   renderHistory();
 }
 
+// L'historique occupe toujours la 1re ligne (en haut) : seul (pleine
+// largeur) quand un bouton spécifique à l'épaisseur suit (27qual / "63."),
+// sinon couplé avec "Autre" pour compléter la ligne.
 function buildPiecesGridSingle() {
-  for (const option of PIECES_OPTIONS) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'tile';
-    setTileEpLabel(btn, state.currentEpaisseur, pieceButtonLabel(option));
-    bindRecordGesture(btn, (grade) => recordCombination(option, undefined, undefined, grade));
-    gridPieces.appendChild(btn);
-  }
+  const hasExtra = state.currentEpaisseur === GRADE27_EPAISSEUR || state.currentEpaisseur === EP38_EPAISSEUR;
 
   const btnAutre = document.createElement('button');
   btnAutre.type = 'button';
@@ -694,7 +690,27 @@ function buildPiecesGridSingle() {
     const label = formatNumberFR(value);
     recordCombination({ key: label, label, rank: value }, undefined, undefined, grade);
   });
-  gridPieces.appendChild(btnAutre);
+
+  if (hasExtra) {
+    historyPanel.classList.add('tile-full');
+    gridPieces.appendChild(historyPanel);
+  } else {
+    gridPieces.appendChild(historyPanel);
+    gridPieces.appendChild(btnAutre);
+  }
+
+  for (const option of PIECES_OPTIONS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tile';
+    setTileEpLabel(btn, state.currentEpaisseur, pieceButtonLabel(option));
+    bindRecordGesture(btn, (grade) => recordCombination(option, undefined, undefined, grade));
+    gridPieces.appendChild(btn);
+  }
+
+  if (hasExtra) {
+    gridPieces.appendChild(btnAutre);
+  }
 
   // Spécifique à l'épaisseur 27 : raccourci ouvrant pagegrade27 (voir
   // buildGrade27Grid), en plus de "Autre".
@@ -722,16 +738,8 @@ function buildPiecesGridSingle() {
 // geste à 4 directions (voir bindSwipeGesture) fixe à la fois l'épaisseur
 // et le grade — aucune information supplémentaire n'est affichée sur les
 // boutons eux-mêmes tant que le geste n'est pas en cours.
+// L'historique et "Autre" occupent ensemble la 1re ligne (en haut).
 function buildPiecesGridDual() {
-  for (const option of PIECES_DUAL_OPTIONS) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'tile';
-    btn.textContent = option.converted;
-    bindSwipeGesture(btn, (direction) => recordPiecesDualSwipe(option, direction));
-    gridPieces.appendChild(btn);
-  }
-
   const btnAutre = document.createElement('button');
   btnAutre.type = 'button';
   btnAutre.className = 'tile tile-autre';
@@ -747,7 +755,18 @@ function buildPiecesGridDual() {
     const label = formatNumberFR(result.value);
     recordCombination({ key: label, label, rank: result.value }, result.ep, undefined, 'normal');
   });
+
+  gridPieces.appendChild(historyPanel);
   gridPieces.appendChild(btnAutre);
+
+  for (const option of PIECES_DUAL_OPTIONS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tile';
+    btn.textContent = option.converted;
+    bindSwipeGesture(btn, (direction) => recordPiecesDualSwipe(option, direction));
+    gridPieces.appendChild(btn);
+  }
 }
 
 function recordPiecesDualSwipe(option, direction) {
