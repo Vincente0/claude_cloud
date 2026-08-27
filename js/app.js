@@ -439,9 +439,11 @@ function swipeAngleDeg(dx, dy) {
 // Intervalles de validation (dans le système d'angles ci-dessus). Les zones
 // hors intervalle (autour de gauche pur et de droite pur) restent une
 // direction indéfinie : rien ne s'enregistre.
+// Les zones "Normal" sont listées avant les zones "Déclassé" adjacentes :
+// à la frontière commune (100° et 260°), c'est donc "Normal" qui gagne.
 const SWIPE_DIRECTIONS = [
-  { minAngle: 270, maxAngle: 340, ep: 63, declasse: false, label: '63 · Normal' },
-  { minAngle: 20, maxAngle: 90, ep: 75, declasse: false, label: '75 · Normal' },
+  { minAngle: 260, maxAngle: 340, ep: 63, declasse: false, label: '63 · Normal' },
+  { minAngle: 20, maxAngle: 100, ep: 75, declasse: false, label: '75 · Normal' },
   { minAngle: 100, maxAngle: 170, ep: 75, declasse: true, label: '75 · Déclassé' },
   { minAngle: 190, maxAngle: 260, ep: 63, declasse: true, label: '63 · Déclassé' },
 ];
