@@ -78,8 +78,8 @@ const PIECES_OPTIONS = [
 ];
 
 // Affichage alternatif des boutons pièces/couche (bouton en haut à droite
-// de la page 2). Purement visuel : l'enregistrement, l'historique et les
-// résultats continuent toujours d'utiliser la valeur pièces/couche réelle.
+// de la page 2). Purement visuel : l'enregistrement et l'historique
+// continuent toujours d'utiliser la valeur pièces/couche réelle.
 const PIECES_DISPLAY_CONVERSION = {
   '5': '200',
   '5.': '225',
@@ -94,6 +94,26 @@ function pieceButtonLabel(option) {
     return PIECES_DISPLAY_CONVERSION[option.key] ?? option.label;
   }
   return option.label;
+}
+
+// Matrice de conversion pièces/couche → largeur, utilisée uniquement dans
+// le tableau Résultats (et son export XLSX) : quand une largeur existe
+// pour la valeur pièces/couche enregistrée, on l'affiche à sa place ;
+// sinon la valeur pièces/couche brute reste affichée telle quelle.
+const PC_TO_LARGEUR_CONVERSION = {
+  '16': '63',
+  '17': '63',
+  '14': '75',
+  '11': '100',
+  '10': '110',
+  '7': '150',
+  '6': '175',
+  '5': '200',
+  '5.': '225',
+};
+
+function resultsPieceLabel(record) {
+  return PC_TO_LARGEUR_CONVERSION[record.pcKey] ?? record.pcLabel;
 }
 
 // Page pc 63/75 : 6 boutons fixes (valeurs converties), l'épaisseur et le
@@ -915,7 +935,7 @@ function renderResults() {
     tr.innerHTML = `
       <td>${formatLongueur(record.lg)}</td>
       <td>${formatNumberFR(record.ep)}</td>
-      <td>${record.pcLabel}</td>
+      <td>${resultsPieceLabel(record)}</td>
       <td>${renderGradeCell(record)}</td>
       <td>${record.nb}</td>
     `;
@@ -1061,7 +1081,7 @@ function exportResultsXlsx() {
     rows.push([
       { type: 's', value: formatLongueur(record.lg) },
       { type: 'n', value: record.ep },
-      { type: 's', value: record.pcLabel },
+      { type: 's', value: resultsPieceLabel(record) },
       { type: 's', value: gradeCellText(record) },
       { type: 'n', value: record.nb },
     ]);
