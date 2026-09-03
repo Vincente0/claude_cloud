@@ -77,29 +77,12 @@ const PIECES_OPTIONS = [
   { key: '5.', label: '5.', rank: 5.01 },
 ];
 
-// Affichage alternatif des boutons pièces/couche (bouton en haut à droite
-// de la page 2). Purement visuel : l'enregistrement et l'historique
-// continuent toujours d'utiliser la valeur pièces/couche réelle.
-const PIECES_DISPLAY_CONVERSION = {
-  '5': '200',
-  '5.': '225',
-  '6': '175',
-  '7': '150',
-  '10': '110',
-  '11': '100',
-};
-
-function pieceButtonLabel(option) {
-  if (state.pieceDisplayMode === 'converted') {
-    return PIECES_DISPLAY_CONVERSION[option.key] ?? option.label;
-  }
-  return option.label;
-}
-
-// Matrice de conversion pièces/couche → largeur, utilisée uniquement dans
-// le tableau Résultats (et son export XLSX) : quand une largeur existe
-// pour la valeur pièces/couche enregistrée, on l'affiche à sa place ;
-// sinon la valeur pièces/couche brute reste affichée telle quelle.
+// Matrice de conversion pièces/couche → largeur — source unique utilisée
+// à la fois par le bouton de bascule d'affichage (page pc), l'historique
+// et le tableau Résultats (+ export XLSX). Quand une largeur existe pour
+// la valeur pièces/couche, elle s'affiche à sa place ; sinon la valeur
+// pièces/couche brute reste affichée telle quelle. L'enregistrement
+// sous-jacent des combinaisons n'est jamais affecté, c'est purement visuel.
 const PC_TO_LARGEUR_CONVERSION = {
   '16': '63',
   '17': '63',
@@ -111,6 +94,13 @@ const PC_TO_LARGEUR_CONVERSION = {
   '5': '200',
   '5.': '225',
 };
+
+function pieceButtonLabel(option) {
+  if (state.pieceDisplayMode === 'converted') {
+    return PC_TO_LARGEUR_CONVERSION[option.key] ?? option.label;
+  }
+  return option.label;
+}
 
 function resultsPieceLabel(record) {
   return PC_TO_LARGEUR_CONVERSION[record.pcKey] ?? record.pcLabel;
@@ -836,11 +826,11 @@ function renderHistory() {
     .join('');
 }
 
-// Valeur pièces/couche affichée dans l'historique : la valeur convertie
-// (ex. "5." → "225") quand elle existe, sinon le libellé brut tel quel
-// (Chevrons "14", "63." de l'épaisseur 38, saisies "Autre", grades 27...).
+// Valeur pièces/couche affichée dans l'historique : la largeur convertie
+// (via PC_TO_LARGEUR_CONVERSION) quand elle existe, sinon le libellé brut
+// tel quel ("63." de l'épaisseur 38, saisies "Autre" sans correspondance...).
 function historyPieceValue(h) {
-  return PIECES_DISPLAY_CONVERSION[h.pcKey] ?? h.pcLabel;
+  return PC_TO_LARGEUR_CONVERSION[h.pcKey] ?? h.pcLabel;
 }
 
 // Libellé de grade affiché en complément (historique, toast, résultats) :
