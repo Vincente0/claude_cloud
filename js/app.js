@@ -8,7 +8,7 @@ const HISTORY_LIMIT = 6;
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', chevronEpaisseur: null, grade27Open: false };
+    if (!raw) return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', pieceDisplayModeDual: 'converted', chevronEpaisseur: null, grade27Open: false };
     const parsed = JSON.parse(raw);
     return {
       records: Array.isArray(parsed.records) ? parsed.records : [],
@@ -17,11 +17,12 @@ function loadState() {
       currentEpaisseur: parsed.currentEpaisseur ?? null,
       epaisseurDual: parsed.epaisseurDual === true,
       pieceDisplayMode: parsed.pieceDisplayMode === 'converted' ? 'converted' : 'pieces',
+      pieceDisplayModeDual: parsed.pieceDisplayModeDual === 'pieces' ? 'pieces' : 'converted',
       chevronEpaisseur: parsed.chevronEpaisseur ?? null,
       grade27Open: parsed.grade27Open === true,
     };
   } catch (e) {
-    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', chevronEpaisseur: null, grade27Open: false };
+    return { records: [], history: [], currentLongueur: null, currentEpaisseur: null, epaisseurDual: false, pieceDisplayMode: 'pieces', pieceDisplayModeDual: 'converted', chevronEpaisseur: null, grade27Open: false };
   }
 }
 
@@ -33,6 +34,7 @@ function saveState() {
     currentEpaisseur: state.currentEpaisseur,
     epaisseurDual: state.epaisseurDual,
     pieceDisplayMode: state.pieceDisplayMode,
+    pieceDisplayModeDual: state.pieceDisplayModeDual,
     chevronEpaisseur: state.chevronEpaisseur,
     grade27Open: state.grade27Open,
   }));
@@ -106,17 +108,27 @@ function resultsPieceLabel(record) {
   return PC_TO_LARGEUR_CONVERSION[record.pcKey] ?? record.pcLabel;
 }
 
-// Page pc 63/75 : 6 boutons fixes (valeurs converties), l'épaisseur et le
-// grade se décident au relâchement du geste à 4 directions (voir
-// bindSwipeGesture). Ordre = disposition affichée (2 colonnes x 3 lignes).
+// Page pc 63/75 : 6 boutons fixes, l'épaisseur et le grade se décident au
+// relâchement du geste à 4 directions (voir bindSwipeGesture). Ordre =
+// disposition affichée (2 colonnes x 3 lignes). Affichage largeur/pièces-
+// couche indépendant de la page pc simple (voir pieceDisplayModeDual),
+// largeur par défaut puisque c'est ainsi que cette page a toujours été
+// présentée.
 const PIECES_DUAL_OPTIONS = [
-  { key: '11', label: '11', rank: 11, converted: '100' },
-  { key: '10', label: '10', rank: 10, converted: '110' },
-  { key: '7', label: '7', rank: 7, converted: '150' },
-  { key: '6', label: '6', rank: 6, converted: '175' },
-  { key: '5', label: '5', rank: 5, converted: '200' },
-  { key: '5.', label: '5.', rank: 5.01, converted: '225' },
+  { key: '11', label: '11', rank: 11 },
+  { key: '10', label: '10', rank: 10 },
+  { key: '7', label: '7', rank: 7 },
+  { key: '6', label: '6', rank: 6 },
+  { key: '5', label: '5', rank: 5 },
+  { key: '5.', label: '5.', rank: 5.01 },
 ];
+
+function pieceButtonLabelDual(option) {
+  if (state.pieceDisplayModeDual === 'converted') {
+    return PC_TO_LARGEUR_CONVERSION[option.key] ?? option.label;
+  }
+  return option.label;
+}
 
 // Chevrons : raccourci depuis la page longueur. Chaque section fixe une
 // épaisseur et un pièces/couche de 14 ; seule la longueur reste à choisir,
@@ -246,9 +258,7 @@ function goToPieces() {
   } else {
     currentLongueurEpaisseurLabel.textContent = '—';
   }
-  // Sur la page 63/75, l'épaisseur se décide par geste sur chaque bouton :
-  // le bouton d'affichage pièces/couche (conversion) n'a plus d'effet ici.
-  btnTogglePiecesDisplay.hidden = state.epaisseurDual;
+  updateTogglePiecesDisplayButton();
   buildPiecesGrid();
   showPage('pieces');
 }
@@ -773,7 +783,7 @@ function buildPiecesGridDual() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'tile';
-    btn.textContent = option.converted;
+    btn.textContent = pieceButtonLabelDual(option);
     bindSwipeGesture(btn, (direction) => recordPiecesDualSwipe(option, direction));
     gridPieces.appendChild(btn);
   }
@@ -1166,15 +1176,20 @@ document.getElementById('btn-back-to-chevron-section').addEventListener('click',
 document.getElementById('btn-back-to-pieces-from-grade27').addEventListener('click', backFromGrade27);
 btnUndoLast.addEventListener('click', undoLastEntry);
 btnTogglePiecesDisplay.addEventListener('click', () => {
-  state.pieceDisplayMode = state.pieceDisplayMode === 'converted' ? 'pieces' : 'converted';
+  if (state.epaisseurDual) {
+    state.pieceDisplayModeDual = state.pieceDisplayModeDual === 'converted' ? 'pieces' : 'converted';
+  } else {
+    state.pieceDisplayMode = state.pieceDisplayMode === 'converted' ? 'pieces' : 'converted';
+  }
   saveState();
   updateTogglePiecesDisplayButton();
   buildPiecesGrid();
-  showToast(state.pieceDisplayMode === 'converted' ? 'Affichage : valeurs converties' : 'Affichage : pièces/couche');
+  const nowConverted = state.epaisseurDual ? state.pieceDisplayModeDual === 'converted' : state.pieceDisplayMode === 'converted';
+  showToast(nowConverted ? 'Affichage : largeur' : 'Affichage : pièces/couche');
 });
 
 function updateTogglePiecesDisplayButton() {
-  const active = state.pieceDisplayMode === 'converted';
+  const active = state.epaisseurDual ? state.pieceDisplayModeDual === 'converted' : state.pieceDisplayMode === 'converted';
   btnTogglePiecesDisplay.setAttribute('aria-pressed', String(active));
 }
 // Résultats n'est accessible que depuis la page Longueur (bouton en haut
